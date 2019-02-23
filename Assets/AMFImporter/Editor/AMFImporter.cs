@@ -10,10 +10,38 @@ public class AMFImporter : ScriptedImporter
 {
     readonly string RegularShaderName="Standard";
     public float importScale=0.0254f;
+    //Model Rigging
+    public Vector3 rigOffset = Vector3.up;
+    public Vector3 rigEulerRoot= new Vector3(0,-90,-90);
+    public enum RigType{
+        None=0,
+        Generic=1,
+        Humanoid=2
+    }
+    public RigType rigType=RigType.None;
+    public bool copyAvatar=false;
+    public Avatar m_LastHumanDescriptionAvatarSource;
     public bool createDuplicateInstances;
-    public bool GenerateLightmapUVs;
+
+    public bool GenerateLightmapUVs=true;
+    public bool CreateSkinnedMeshes{
+        get{return rigType!=RigType.None;}
+    }
+    
     public bool GenerateMeshCollidersOnClusters;
-    public UnwrapParam uvSettings;
+
+    public UnwrapParam uvSettings = new UnwrapParam();
+    /*
+    m_SecondaryUVAngleDistortion = serializedObject.FindProperty("secondaryUVAngleDistortion");
+            m_SecondaryUVAreaDistortion = serializedObject.FindProperty("secondaryUVAreaDistortion");
+            m_SecondaryUVHardAngle = serializedObject.FindProperty("secondaryUVHardAngle");
+            m_SecondaryUVPackMargin = serializedObject.FindProperty("secondaryUVPackMargin");
+    
+     */
+    public float angleError;
+    public float areaError;
+    public float hardAngle;
+    public float packMargin;
     string progressString="Parsing ";
     public override void OnImportAsset(AssetImportContext ctx){
         Debug.Log("Attempting to import AMF:"+ctx.assetPath);
@@ -90,6 +118,22 @@ public class AMFImporter : ScriptedImporter
             } */
             ctx.AddObjectToAsset(m.name,m);
         } 
+        if(CreateSkinnedMeshes){
+            Animator anim = root.AddComponent<Animator>();
+            Transform rigRoot=root.GetComponentInChildren<SkinnedMeshRenderer>().rootBone;
+            List<string> reports = new List<string>();
+            //Dictionary<int,Transform> mapbones= AvatarBipedMapper.MapBones(rigRoot,reports);
+            AvatarAutoMapper.MapBones(rigRoot,);
+            Debug.Log("Mapbones Report:"+mapbones.Count);
+            foreach(string s in reports){
+                Debug.Log(s);
+            }
+            Avatar avatar = CreateAvatar.Build(mapbones,root);
+            avatar.name=root.name+"Avatar";
+            anim.avatar=avatar;
+            ctx.AddObjectToAsset(avatar.name,avatar);
+            
+        }
         
         Debug.Log("AMF import complete");
         EditorUtility.ClearProgressBar();
@@ -103,6 +147,14 @@ public class AMFImporter : ScriptedImporter
         Dictionary<long,Mesh> meshCache = new Dictionary<long,Mesh>();
         float meshComplete=0;
         float totalMeshCount=0;
+
+        List<Transform> nodes=null;
+        if(CreateSkinnedMeshes){
+            nodes=CreateRigging(amf);
+            nodes[0].parent=root.transform;
+        }
+
+
         foreach(AMF_RegionInfo ri in amf.regionInfo)
             totalMeshCount+=ri.permutations.Count;
 
@@ -122,7 +174,7 @@ public class AMFImporter : ScriptedImporter
                     List<int> badIndex = new List<int>();
                     int[] identity=new int[perm.vertices.Count];
 
-                    
+                    List<BoneWeight> bones = new List<BoneWeight>();
                     
                     
                     
@@ -153,11 +205,37 @@ public class AMFImporter : ScriptedImporter
                             
                             uvs.Add(perm.vertices[i].tex);
                             texMatrix=perm.vertices[i].tmat;
+                            if(perm.vertices[i].weights.Count>0){
+                                //Debug.LogFormat("BoneWeight found [{0}]:{1}",perm.vertices[i].weights.Count,perm.vertices[i].weights[0]);
+                                BoneWeight bw = new BoneWeight();
+                                for(int b = 0;b<perm.vertices[i].weights.Count;b++){
+                                    switch(b){
+                                        case 0:
+                                            bw.weight0=perm.vertices[i].weights[b];
+                                            bw.boneIndex0=perm.vertices[i].indices[b];
+                                        break;
+                                        case 1:
+                                            bw.weight1=perm.vertices[i].weights[b];
+                                            bw.boneIndex1=perm.vertices[i].indices[b];
+                                        break;
+                                        case 2:
+                                            bw.weight2=perm.vertices[i].weights[b];
+                                            bw.boneIndex2=perm.vertices[i].indices[b];
+                                        break;
+                                        case 3:
+                                            bw.weight3=perm.vertices[i].weights[b];
+                                            bw.boneIndex3=perm.vertices[i].indices[b];
+                                        break;
+                                    }
+                                }
+                                bones.Add(bw);
+                            }
                         }
                         
                     }
                     temp.SetVertices(verts);
                     temp.SetUVs(0,uvs);
+                    temp.boneWeights=bones.ToArray();
                     List<int> tris;
                     int faceTotal=0;
                     temp.subMeshCount=perm.meshes.Count;
@@ -225,14 +303,31 @@ public class AMFImporter : ScriptedImporter
                 
                 //meshNode.transform.localToWorldMatrix=matr;
                 
-                MeshFilter mf =meshNode.AddComponent<MeshFilter>();
-                mf.sharedMesh=temp;
-                MeshRenderer mr = meshNode.AddComponent<MeshRenderer>();
+                
+                Renderer mr;
+                if(temp.boneWeights.Length>0&&CreateSkinnedMeshes){
+                    mr=meshNode.AddComponent<SkinnedMeshRenderer>();
+                    meshNode.transform.localRotation=Quaternion.Euler(0,90,0);
+                    Matrix4x4[] bindPoses = new Matrix4x4[nodes.Count];
+                    for(int m =0;m<bindPoses.Length;m++){
+                        bindPoses[m]=nodes[m].worldToLocalMatrix*meshNode.transform.localToWorldMatrix;
+                    }
+                    temp.bindposes=bindPoses;
+                    ((SkinnedMeshRenderer)mr).sharedMesh=temp;
+                    ((SkinnedMeshRenderer)mr).bones=nodes.ToArray();
+                    ((SkinnedMeshRenderer)mr).rootBone=nodes[0];
+
+                }else{
+                    MeshFilter mf =meshNode.AddComponent<MeshFilter>();
+                    mf.sharedMesh=temp;
+                    mr = meshNode.AddComponent<MeshRenderer>();
+                }
+                
                 
                 meshNode.transform.parent=riNode.transform;
                 if(GenerateMeshCollidersOnClusters&&amf.regionInfo[ri].name.Equals("Clusters")){
                     MeshCollider mc = meshNode.AddComponent<MeshCollider>();
-                    mc.sharedMesh=mf.sharedMesh;
+                    mc.sharedMesh=temp;
                 }
                 Material[] materials = new Material[temp.subMeshCount];
                 List<AMFShaderInfo> si = new List<AMFShaderInfo>();
@@ -254,138 +349,74 @@ public class AMFImporter : ScriptedImporter
         
         return meshCache;
     }
+
     /*
     
-    Create Materials
+    Create Bone Hierarchy
      */
+    List<Transform> CreateRigging(AMF amf){
+        List<Transform> bones= new List<Transform>();
+        
+        //first past to instantiate references
+        for(int i=0;i<amf.nodes.Count;i++){
+            bones.Add(new GameObject(amf.nodes[i].name).transform);
+        }
+        
+        //second pass to setup hierarchy
+        for(int i=0;i<amf.nodes.Count;i++){
+            if(amf.nodes[i].parentIndex>-1){
+                bones[i].parent=bones[amf.nodes[i].parentIndex];
+               // Matrix4x4 flip=Matrix4x4.identity;
+                //flip.SetRow(0,new Vector4(-1,0));
+               // flip.SetRow(2,new Vector4(0,0,-1));
+                //flip.SetRow(2,new Vector4(0,-1));
+                //verts.Add();
+                //bones[i].localScale=new Vector3(importScale,importScale,importScale);
+                
+                /* if(!float.IsNaN(perm.mult)){
+                    Matrix4x4 flip=Matrix4x4.identity;
+                    flip.SetRow(0,new Vector4(-1,0));
+                    verts.Add(flip.MultiplyPoint3x4(pos));
+                }else{ */
+                    //verts.Add(Matrix4x4.identity.Convert3DSMatrixToUnity().MultiplyPoint3x4(pos));
+                    Matrix4x4 flip=Matrix4x4.identity;
+                    flip.SetRow(0,new Vector4(-1,0));
+                    //flip.SetRow(1,new Vector4(0,0,1));
+                    //flip.SetRow(2,new Vector4(0,-1));
+                    //verts.Add(flip.MultiplyPoint3x4(pos));
+                //}
+                
+                bones[i].localPosition=flip.MultiplyPoint3x4(amf.nodes[i].pos);//new Vector3(amf.nodes[i].pos.x,amf.nodes[i].pos.y,-amf.nodes[i].pos.z);
 
-    Material SetupRegularMaterial(RegularShader shader,string basePath){
-        Material mat = new Material(Shader.Find(RegularShaderName));
-        mat.SetFloat("_SmoothnessTextureChannel",1f);
-        mat.EnableKeyword("_SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A");
-        for(int i=0;i<shader.paths.Count;i++){
-            if(shader.paths[i]!=null&&!shader.paths[i].Equals("null")){
-                Texture2D tex = (Texture2D)AssetDatabase.LoadAssetAtPath(basePath+shader.paths[i].Replace('\\','/')+".tif",typeof(Texture2D));
-                if(tex==null){
-                    Debug.LogWarning("Failed to load texture:"+basePath+shader.paths[i]);
-                    continue;
-                }else{
-                    //Debug.Log("Loaded:"+basePath+shader.paths[i]);
-                }
-                switch(i){
-                    case 0:
-                        mat.SetTexture("_MainTex",tex);
-                        mat.SetTextureScale("_MainTex",shader.uvTiles[i]);
-                        break;
-                    case 1:
-                        mat.SetTexture("_DetailAlbedoMap",tex);
-                        mat.SetTextureScale("_DetailAlbedoMap",shader.uvTiles[i]);
-                        mat.EnableKeyword("_DETAIL_MULX2");
-                        break;
-                    case 3:
-                        mat.SetTexture("_BumpMap",tex);
-                        mat.SetTextureScale("_BumpMap",shader.uvTiles[i]);
-                        break;
-                    case 4:
-                        mat.SetTexture("_DetailNormalMap",tex);
-                        mat.SetTextureScale("_DetailNormalMap",shader.uvTiles[i]);
-                        break;
-                    case 5:
-                        Debug.Log("EMission map found for:"+shader.sName);
-                        mat.EnableKeyword("_EMISSION");
-                        mat.SetFloat("_EmissionScaleUI", 1);
-                        mat.SetTexture("_EmissionMap",tex);
-                        mat.SetTextureScale("_EmissionMap",shader.uvTiles[i]);
-                        break;
-                    default:
-                        Debug.LogWarning("Not sure where to put texture:["+i+"]"+shader.paths[i]);
-                    break;
-                }
+                
+                bones[i].localRotation=new Quaternion(amf.nodes[i].rot.x,-amf.nodes[i].rot.y,-amf.nodes[i].rot.z,amf.nodes[i].rot.w);//amf.nodes[i].rot;//
+                
+                //bones[i].position=new Vector3(bones[i].position.x,bones[i].position.y,-bones[i].position.z);
+                /* Matrix4x4 trnsfm=Matrix4x4.TRS(amf.nodes[i].pos,amf.nodes[i].rot,Vector3.one);
+                Matrix4x4 trnsfm2=flip*trnsfm;
+                bones[i].localPosition=trnsfm2.ExtractPosition();
+                bones[i].localRotation=trnsfm2.GetRotation(); */
+                //Matrix4x4 trnsfm2=trnsfm.Convert3DSMatrixToUnity();
+                //bones[i].localPosition=trnsfm2.ExtractPosition();
+                //bones[i].localRotation=trnsfm2.GetRotation();
             }
         }
-
-        //0
-        mat.SetColor("_Color",shader.tints[0]);
-        if(2<shader.tints.Count)
-            mat.SetColor("_EmissionColor",shader.tints[2]);
-        
-        
-        if(shader.isTransparent)
-            mat.SetFloat("_Mode",1f);
-        //mat.SetColor("_DetailAlbedoColor",shader.tints[1].ToColor32());
-        mat.name=shader.sName;
-        //mat.SetFloat("")
-
-        return mat;
+        //third pass to reorder siblings.
+        for(int i=0;i<amf.nodes.Count;i++){
+            if(amf.nodes[i].siblingIndex>-1){
+                bones[i].parent.SetSiblingIndex(amf.nodes[i].siblingIndex);
+            }
+        }
+        bones.Insert(0,new GameObject("Root").transform);
+        bones[1].parent=bones[0];
+        bones[0].localScale=new Vector3(importScale,importScale,importScale);
+        bones[0].localRotation=Quaternion.Euler(rigEulerRoot);//0,-90f,-90f);
+        bones[0].localPosition=rigOffset;
+        //bones[0].localPosition=Vector3.up;
+        return bones;
     }
 
-    Material SetupTerrainMaterial(TerrainShader shader,string basePath){
-        Material material=new Material(Shader.Find("Adjutant/MultiBlend"));
-        Texture2D tex;
-        /* Debug.Log("Dumping Terrain Shader parameters: "+shader.sName);
-        
-        for(int i=0;i<shader.baseMaps.Count;i++){
-            Debug.LogFormat("Base[{0}]:{1}",i,shader.baseMaps[i]);
-        } */
-        string overlayPath=null;
-        for(int i=0;i<shader.detMaps.Count;i++){
-            //Debug.LogFormat("Det[{0}]:{1}",i,shader.detMaps[i]);
-            if(shader.detMaps[i].Contains("overlay"))
-                overlayPath=shader.detMaps[i];
-        }
-        if(overlayPath!=null){
-             tex = (Texture2D)AssetDatabase.LoadAssetAtPath(basePath+overlayPath.Replace('\\','/')+".tif",typeof(Texture2D));
-            if(tex!=null){
-                material.SetTexture("_MainTex",tex);
-                TextureImporter ti = (TextureImporter)TextureImporter.GetAtPath(basePath+shader.detMaps[0].Replace('\\','/')+".tif");
-                if(ti!=null)
-                    material.SetFloat("_OverlayAlpha",(ti.DoesSourceTextureHaveAlpha()?1f:0f));
-            }
-        }
-       
-        
-        tex = (Texture2D)AssetDatabase.LoadAssetAtPath(basePath+shader.blendPath.Replace('\\','/')+".tif",typeof(Texture2D));
-        if(tex!=null){
-            
-            
-            material.SetTexture("_BlendTex",tex);
-        }
-       // tex = (Texture2D)AssetDatabase.LoadAssetAtPath(basePath+shader.baseMaps[0].Replace('\\','/')+".tif",typeof(Texture2D));
-        string texName="";
-        Vector2 offset=Vector2.zero;
-        //Texture2DArray baseMaps = new Texture2DArray(tex.width,tex.height,shader.baseMaps.Count,TextureFormat.DXT5,false);
-        float hasAlpha;
-        for(int i=0;i<shader.baseMaps.Count;i++){
-            TextureImporter ti = (TextureImporter)TextureImporter.GetAtPath(basePath+shader.baseMaps[i].Replace('\\','/')+".tif");
-            if(ti==null)
-                continue;
-            hasAlpha=(ti.DoesSourceTextureHaveAlpha()?1f:0f);
-            tex = (Texture2D)AssetDatabase.LoadAssetAtPath(basePath+shader.baseMaps[i].Replace('\\','/')+".tif",typeof(Texture2D));
-            if(tex!=null){
-                
-                switch(i){
-                    case 0 : texName="_RTex";offset=shader.baseTiles[i]; break; 
-                    case 1 : texName="_GTex";offset=shader.baseTiles[i]; break;
-                    case 2 : texName="_BTex";offset=shader.baseTiles[i]; break;
-                    case 3 : texName="_ATex";offset=shader.baseTiles[i]; break;
-                }
-                material.SetTexture(texName,tex);
-                material.SetTextureScale(texName,offset);
-                material.SetFloat(texName+"Alpha",hasAlpha);
-                
-            }
-                //
-        }
-        
-        //material.SetFloatArray("_HasAlpha",hasAlpha);
-        //baseMaps.Apply();
-        //AssetDatabase.CreateAsset(baseMaps,basePath+shader.sName+"BaseMaps.asset");
-        //set blend
-        //material.SetTexture("_BaseMaps",baseMaps);
-        //set base
-        //set tiling
-        return material;
-    }
+    
 
 
 /*
@@ -413,7 +444,7 @@ Translated from the original MaxScript import
                 //tvRegions.Nodes.Clear()
 
                 EditorUtility.DisplayProgressBar("Parsing "+path,"[0/5] Parsing nodes...",0);
-                readNodes(reader, amf);
+                readNodes(reader, amf,false,true);
                 EditorUtility.DisplayProgressBar("Parsing "+path,"[1/5] Parsing Markers...",(1f/5f));
                 readMarkers(reader, amf);
                 EditorUtility.DisplayProgressBar("Parsing "+path,"[2/5] Parsing Regions...",(2f/5f));
@@ -432,7 +463,7 @@ Translated from the original MaxScript import
             amf.version = reader.ReadSingle();
             amf.modelName = reader.ReadCString();
         }
-        static void readNodes(BinaryReader reader, AMF amf,bool skip=false)
+        static void readNodes(BinaryReader reader, AMF amf,bool skip=false,bool dumpNames=false)
         {
             int count = reader.ReadInt32();
             Debug.Log("Node count:" + count);
@@ -454,6 +485,9 @@ Translated from the original MaxScript import
                     Quaternion rot = new Quaternion(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
                     name = i.ToString().PadLeft(3, '0') + name;
                     nodes.Add(new AMF_Node(name, parentIndex, childIndex, siblingIndex, pos, rot));
+                    if(dumpNames){
+                        Debug.LogFormat("Node Found:{0} {1}:{2}:{3} at {4}",name,parentIndex,childIndex,siblingIndex,pos.ToString());
+                    }
                 }
                 reader.BaseStream.Seek(fPos, SeekOrigin.Begin);
             }
@@ -467,6 +501,7 @@ Translated from the original MaxScript import
             //}
             
             //Debug.Log(ReadCString(reader));
+            amf.nodes=nodes;
         }
         static void readMarkers(BinaryReader reader, AMF amf,bool skip=false)
         {

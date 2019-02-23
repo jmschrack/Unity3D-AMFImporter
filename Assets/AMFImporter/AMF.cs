@@ -10,6 +10,7 @@ namespace AdjutantSharp{
         public string header;
         public float version;
         public string modelName;
+        public List<AMF_Node> nodes;
 
         public List<ShaderInfo> shaderInfos;
         public List<AMF_RegionInfo> regionInfo;
@@ -30,10 +31,10 @@ namespace AdjutantSharp{
                 public short childIndex;
                 public short siblingIndex;
                 
-                public Vector3 position;
-                public Quaternion orientation;
-                private Vector3 pos;
-                private Quaternion rot;
+                
+                
+                public Vector3 pos;
+                public Quaternion rot;
 
                 public AMF_Node(string name, short parentIndex, short childIndex, short siblingIndex, Vector3 pos, Quaternion rot) : this()
                 {
