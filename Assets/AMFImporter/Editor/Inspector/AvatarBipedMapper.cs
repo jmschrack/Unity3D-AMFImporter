@@ -219,7 +219,7 @@ namespace AdjutantSharp
             return ret;
         }
 
-        /* internal static void BipedPose(GameObject go, AvatarSetupTool.BoneWrapper[] bones)
+        public static void BipedPose(GameObject go, AvatarSetupTool.BoneWrapper[] bones)
         {
             BipedPose(go.transform, true);
 
@@ -229,7 +229,7 @@ namespace AdjutantSharp
 
             // Move Biped feet to ground plane
             AvatarSetupTool.MakeCharacterPositionValid(bones);
-        } */
+        } 
 
         private static void BipedPose(Transform t, bool ignore)
         {

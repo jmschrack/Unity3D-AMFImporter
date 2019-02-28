@@ -5,11 +5,16 @@ using UnityEngine;
 using UnityEditor;
 using System;
 using AdjutantSharp;
-[ScriptedImporter(1,"amf")]
+[ScriptedImporter(2,"amf")]
 public class AMFImporter : ScriptedImporter
 {
     readonly string RegularShaderName="Standard";
-    public float importScale=0.0254f;
+    public float globalScale=1f;
+    public string m_FileScaleUnit="in.";
+    public bool m_UseFileScale=false;
+    public float m_FileScaleFactor=0.0254f;
+    public bool mergeSkinnedMeshes=false;
+    public ModelImporterNormals normalImportMode;
     //Model Rigging
     public Vector3 rigOffset = Vector3.up;
     public Vector3 rigEulerRoot= new Vector3(0,-90,-90);
@@ -23,30 +28,23 @@ public class AMFImporter : ScriptedImporter
     public Avatar m_LastHumanDescriptionAvatarSource;
     public bool createDuplicateInstances;
 
-    public bool GenerateLightmapUVs=true;
+    public bool GenerateLightmapUVs=false;
     public bool CreateSkinnedMeshes{
         get{return rigType!=RigType.None;}
     }
     
     public bool GenerateMeshCollidersOnClusters;
 
-    public UnwrapParam uvSettings = new UnwrapParam();
-    /*
-    m_SecondaryUVAngleDistortion = serializedObject.FindProperty("secondaryUVAngleDistortion");
-            m_SecondaryUVAreaDistortion = serializedObject.FindProperty("secondaryUVAreaDistortion");
-            m_SecondaryUVHardAngle = serializedObject.FindProperty("secondaryUVHardAngle");
-            m_SecondaryUVPackMargin = serializedObject.FindProperty("secondaryUVPackMargin");
+    UnwrapParam uvSettings = new UnwrapParam();
+    public float angleError=8f;
+    public float areaError=15f;
+    public float hardAngle=88f;
+    public float packMargin=4f;
     
-     */
-    public float angleError;
-    public float areaError;
-    public float hardAngle;
-    public float packMargin;
-    string progressString="Parsing ";
     public override void OnImportAsset(AssetImportContext ctx){
         Debug.Log("Attempting to import AMF:"+ctx.assetPath);
-        progressString+=ctx.assetPath;
-        EditorUtility.DisplayProgressBar(progressString,"Parsing...",0);
+        
+        EditorUtility.DisplayProgressBar("Parsing"+ctx.assetPath,"Parsing...",0);
         AMF amf=ParseAMF( ctx.assetPath);
         
         string workingDir=ctx.assetPath.Substring(0,ctx.assetPath.LastIndexOf("/")+1);
@@ -92,7 +90,7 @@ public class AMFImporter : ScriptedImporter
             }
             matsComplete++;
         }
-        //EditorUtility.DisplayProgressBar(progressString,"[4/5] Creating Meshes...",(4f/5f));
+        
         /*
         Create Meshes
         */
@@ -101,39 +99,15 @@ public class AMFImporter : ScriptedImporter
         ctx.AddObjectToAsset(amf.modelName,root);
         ctx.SetMainObject(root);
         Dictionary<long,Mesh> meshList =ConvertMeshes(amf,mats,matsHelpers,root);
-
-        //root.transform.rotation=Quaternion.Euler(-90f,0f,0f);
-        /* LoadRegions(amf,root);
-        List<Mesh> meshList=CreateMeshes(amf,root.transform,mats);
-        */
-        UnwrapParam.SetDefaults(out uvSettings);
-        EditorUtility.DisplayProgressBar(progressString,"[5/5] Finishing up...",(5f/5f));
-        float lightCount=0;
-        float totalLight=meshList.Count;
+        EditorUtility.DisplayProgressBar("Parsing "+ctx.assetPath,"[5/5] Finishing up...",(5f/5f));
         foreach(Mesh m in meshList.Values){
-            /* if(GenerateLightmapUVs){
-                EditorUtility.DisplayProgressBar("Generating Lightmaps","["+lightCount+"/"+totalLight+"] Generating UVs...",(lightCount/totalLight));
-                Unwrapping.GenerateSecondaryUVSet(m,uvSettings);
-                lightCount++;
-            } */
             ctx.AddObjectToAsset(m.name,m);
         } 
         if(CreateSkinnedMeshes){
-            Animator anim = root.AddComponent<Animator>();
-            Transform rigRoot=root.GetComponentInChildren<SkinnedMeshRenderer>().rootBone;
-            List<string> reports = new List<string>();
-            //Dictionary<int,Transform> mapbones= AvatarBipedMapper.MapBones(rigRoot,reports);
-            AvatarAutoMapper.MapBones(rigRoot,);
-            Debug.Log("Mapbones Report:"+mapbones.Count);
-            foreach(string s in reports){
-                Debug.Log(s);
-            }
-            Avatar avatar = CreateAvatar.Build(mapbones,root);
-            avatar.name=root.name+"Avatar";
-            anim.avatar=avatar;
-            ctx.AddObjectToAsset(avatar.name,avatar);
-            
+            Avatar a = root.GetComponent<Animator>().avatar;
+            ctx.AddObjectToAsset(a.name,a);
         }
+        
         
         Debug.Log("AMF import complete");
         EditorUtility.ClearProgressBar();
@@ -152,6 +126,36 @@ public class AMFImporter : ScriptedImporter
         if(CreateSkinnedMeshes){
             nodes=CreateRigging(amf);
             nodes[0].parent=root.transform;
+            Animator anim = root.AddComponent<Animator>();
+            //Transform rigRoot=root.GetComponentInChildren<SkinnedMeshRenderer>().rootBone;
+            if(copyAvatar){
+                //ctx.AddObjectToAsset(m_LastHumanDescriptionAvatarSource.name,m_LastHumanDescriptionAvatarSource);
+                anim.avatar=m_LastHumanDescriptionAvatarSource;
+            }else{
+                //EditorUtility.DisplayProgressBar("Parsing "+ctx.assetPath,"Creating Avatar",(5f/5f));
+                List<string> reports = new List<string>();
+                HumanDescription hd = new HumanDescription();
+                AvatarSetupTool.SkeletonBone[] skeletonBones;
+                bool hasTranslationDOF;
+                reports=AvatarSetupTool.SetupHumanSkeleton(nodes[0].parent.gameObject,ref hd.human,out skeletonBones,out hasTranslationDOF);
+                hd.hasTranslationDoF=hasTranslationDOF;
+                SkeletonBone[] sb = new SkeletonBone[skeletonBones.Length+1];
+                Array.Copy(Array.ConvertAll(skeletonBones,(p => (SkeletonBone) p)),sb,sb.Length-1);
+                sb[sb.Length-1].name=nodes[0].parent.name;
+                sb[sb.Length-1].position=nodes[0].parent.localPosition;
+                sb[sb.Length-1].rotation=nodes[0].parent.localRotation;
+                sb[sb.Length-1].scale=nodes[0].parent.localScale;
+                hd.skeleton=sb;
+                Avatar a;
+                if(rigType==RigType.Humanoid)
+                    a=AvatarBuilder.BuildHumanAvatar(nodes[0].parent.gameObject,hd);
+                else
+                    a=AvatarBuilder.BuildGenericAvatar(nodes[0].parent.gameObject,nodes[0].parent.name);
+                a.name=root.name+"Avatar";
+                //ctx.AddObjectToAsset(a.name,a);
+                anim.avatar=a;
+            }
+            
         }
 
 
@@ -165,111 +169,17 @@ public class AMFImporter : ScriptedImporter
                 EditorUtility.DisplayProgressBar("Creating Meshes",perm.pName,(meshComplete/totalMeshCount));
                 Mesh temp;
                 if(createDuplicateInstances||!meshCache.ContainsKey(perm.vAddress)){
-
-                
-                    temp = new Mesh();
-                    temp.name=perm.pName;
-                    List<Vector3> verts = new List<Vector3>();
-                    List<Vector2> uvs=new List<Vector2>();
-                    List<int> badIndex = new List<int>();
-                    int[] identity=new int[perm.vertices.Count];
-
-                    List<BoneWeight> bones = new List<BoneWeight>();
-                    
-                    
-                    
-                    //matr=matr.ConvertHandedness();
-                    Matrix4x4 texMatrix=Matrix4x4.identity;
-                    for(int i=0;i<perm.vertices.Count;i++){
-                        Vector3 pos = perm.vertices[i].pos;
-                        identity[i]=i;
-                        //pos=perm.matrix4x4*pos;
-                        if(pos.IsBad()){
-                            Debug.LogErrorFormat("Invalid vertex found: [{0}]"+perm.vertices[i].pos.ToString(),i);
-                            badIndex.Add(i);
-                            verts.Add(Vector3.zero);
-                            uvs.Add(Vector2.zero);
-                        }else{
-                            if(!float.IsNaN(perm.mult)){
-                                Matrix4x4 flip=Matrix4x4.identity;
-                                flip.SetRow(0,new Vector4(-1,0));
-                                verts.Add(flip.MultiplyPoint3x4(pos));
-                            }else{
-                                //verts.Add(Matrix4x4.identity.Convert3DSMatrixToUnity().MultiplyPoint3x4(pos));
-                                Matrix4x4 flip=Matrix4x4.identity;
-                                flip.SetRow(0,new Vector4(-1,0));
-                                flip.SetRow(1,new Vector4(0,0,1));
-                                flip.SetRow(2,new Vector4(0,-1));
-                                verts.Add(flip.MultiplyPoint3x4(pos));
-                            }
-                            
-                            uvs.Add(perm.vertices[i].tex);
-                            texMatrix=perm.vertices[i].tmat;
-                            if(perm.vertices[i].weights.Count>0){
-                                //Debug.LogFormat("BoneWeight found [{0}]:{1}",perm.vertices[i].weights.Count,perm.vertices[i].weights[0]);
-                                BoneWeight bw = new BoneWeight();
-                                for(int b = 0;b<perm.vertices[i].weights.Count;b++){
-                                    switch(b){
-                                        case 0:
-                                            bw.weight0=perm.vertices[i].weights[b];
-                                            bw.boneIndex0=perm.vertices[i].indices[b];
-                                        break;
-                                        case 1:
-                                            bw.weight1=perm.vertices[i].weights[b];
-                                            bw.boneIndex1=perm.vertices[i].indices[b];
-                                        break;
-                                        case 2:
-                                            bw.weight2=perm.vertices[i].weights[b];
-                                            bw.boneIndex2=perm.vertices[i].indices[b];
-                                        break;
-                                        case 3:
-                                            bw.weight3=perm.vertices[i].weights[b];
-                                            bw.boneIndex3=perm.vertices[i].indices[b];
-                                        break;
-                                    }
-                                }
-                                bones.Add(bw);
-                            }
-                        }
-                        
-                    }
-                    temp.SetVertices(verts);
-                    temp.SetUVs(0,uvs);
-                    temp.boneWeights=bones.ToArray();
-                    List<int> tris;
-                    int faceTotal=0;
-                    temp.subMeshCount=perm.meshes.Count;
-                    /* temp.SetIndices(identity,MeshTopology.Points,0); */
-                // Debug.LogFormat("{0} adding submeshes",perm.pName);
-                    for(int s=0;s<perm.meshes.Count;s++){
-                        AMF_Mesh sinfo=perm.meshes[s];
-                        faceTotal+=sinfo.faceCount;
-                        tris=new List<int>();
-                    // Debug.LogFormat("{0}:{1}-{2}",s,sinfo.startingFace,sinfo.faceCount);
-                        for(int f=0;f<sinfo.faceCount;f++){
-                            
-                            Vector3Int face=perm.faces[f+sinfo.startingFace];
-                            if(badIndex.Contains(face.x)||badIndex.Contains(face.y)||badIndex.Contains(face.z)){
-                            // Debug.LogWarning("Dumping face due to invalid vertex");
-                            }else{
-                                tris.Add(face.x);
-                                tris.Add(face.y);
-                                tris.Add(face.z);
-                            }
-                        }
-                        //Debug.LogFormat("{0} Setting {1} triangles",s,tris.Count);
-                        temp.SetTriangles(tris,s);
-                    }
-                    if(perm.faces.Count!=faceTotal){
-                        Debug.LogErrorFormat("Faces mistmatch: {0}vs{1} {2}",perm.faces.Count,faceTotal,perm.pName);
-                    }
-                    //if(!float.IsNaN(perm.mult)){
-                        temp.FlipNormals();
-                    //}
-                    
+                    temp = ConvertInstanceToMesh(perm);
+                    //we have to flip the normals due to the coordinate system translation
+                    temp.FlipNormals();
                     temp.RecalculateNormals();
                     if(GenerateLightmapUVs){
-                        Unwrapping.GenerateSecondaryUVSet(temp);
+                        EditorUtility.DisplayProgressBar("Generating Lightmap UVs",perm.pName,(meshComplete/totalMeshCount));
+                        uvSettings.angleError=angleError;
+                        uvSettings.areaError=areaError;
+                        uvSettings.hardAngle=hardAngle;
+                        uvSettings.packMargin=packMargin;
+                        Unwrapping.GenerateSecondaryUVSet(temp,uvSettings);
                     }
                     meshCache.Add(perm.vAddress,temp);
                     
@@ -279,11 +189,10 @@ public class AMFImporter : ScriptedImporter
                 GameObject meshNode = new GameObject(perm.pName);
                 Matrix4x4 matr = Matrix4x4.identity;
                 if(!float.IsNaN(perm.mult)){
-                    
                     Matrix4x4 scalerM = new Matrix4x4();
-                    scalerM.SetRow(0,new Vector4(100f*importScale,0));
-                    scalerM.SetRow(1,new Vector4(0,100f*importScale));
-                    scalerM.SetRow(2,new Vector4(0,0,100f*importScale));
+                    scalerM.SetRow(0,new Vector4(100f*m_FileScaleFactor,0));
+                    scalerM.SetRow(1,new Vector4(0,100f*m_FileScaleFactor));
+                    scalerM.SetRow(2,new Vector4(0,0,100f*m_FileScaleFactor));
                     scalerM.SetRow(3,new Vector4(0,0,0,1));
                     matr.SetRow(0,new Vector4(perm.mult,0));
                     matr.SetRow(1,new Vector4(0,perm.mult));
@@ -296,7 +205,7 @@ public class AMFImporter : ScriptedImporter
                     meshNode.transform.localRotation=unityMatr.GetRotation();
                     meshNode.transform.localPosition=unityMatr.ExtractPosition();
                 }else{
-                    meshNode.transform.localScale=new Vector3(importScale,importScale,importScale);
+                    meshNode.transform.localScale=new Vector3(m_FileScaleFactor,m_FileScaleFactor,m_FileScaleFactor);
                 }
                 
                 //GameObjectUtility.SetParentAndAlign(meshNode,riNode);
@@ -350,6 +259,55 @@ public class AMFImporter : ScriptedImporter
         return meshCache;
     }
 
+    Mesh ConvertInstanceToMesh(AMF_Permutations perm){
+        Mesh temp= new Mesh();
+        temp.name=perm.pName;
+        List<Vector3> verts = new List<Vector3>();
+        List<Vector2> uvs=new List<Vector2>();
+        //List<int> badIndex = new List<int>();
+        //int[] identity=new int[perm.vertices.Count];
+        List<BoneWeight> bones = new List<BoneWeight>();
+
+        //Matrix4x4 texMatrix=Matrix4x4.identity;
+        for(int i=0;i<perm.vertices.Count;i++){
+            Vector3 pos = perm.vertices[i].pos;
+            Matrix4x4 flip=Matrix4x4.identity;
+            flip.SetRow(0,new Vector4(-1,0));
+            if(float.IsNaN(perm.mult)){
+                flip.SetRow(1,new Vector4(0,0,1));
+                flip.SetRow(2,new Vector4(0,-1));
+            }
+            verts.Add(flip.MultiplyPoint3x4(pos));
+            uvs.Add(perm.vertices[i].tex);
+            //texMatrix=perm.vertices[i].tmat;
+            if(perm.vertices[i].HasBoneWeight()){
+                bones.Add(perm.vertices[i].GetBoneWeight());
+            }
+        }
+        temp.SetVertices(verts);
+        temp.SetUVs(0,uvs);
+        temp.boneWeights=bones.ToArray();
+        //Triangles
+        List<int> tris;
+        int faceTotal=0;
+        temp.subMeshCount=perm.meshes.Count;
+        
+        for(int s=0;s<perm.meshes.Count;s++){
+            AMF_Mesh sinfo=perm.meshes[s];
+            faceTotal+=sinfo.faceCount;
+            tris=new List<int>();
+            for(int f=0;f<sinfo.faceCount;f++){
+                Vector3Int face=perm.faces[f+sinfo.startingFace];
+                tris.Add(face.x);
+                tris.Add(face.y);
+                tris.Add(face.z);
+            }
+            temp.SetTriangles(tris,s);
+        }
+
+        return temp;
+
+    }
     /*
     
     Create Bone Hierarchy
@@ -366,39 +324,10 @@ public class AMFImporter : ScriptedImporter
         for(int i=0;i<amf.nodes.Count;i++){
             if(amf.nodes[i].parentIndex>-1){
                 bones[i].parent=bones[amf.nodes[i].parentIndex];
-               // Matrix4x4 flip=Matrix4x4.identity;
-                //flip.SetRow(0,new Vector4(-1,0));
-               // flip.SetRow(2,new Vector4(0,0,-1));
-                //flip.SetRow(2,new Vector4(0,-1));
-                //verts.Add();
-                //bones[i].localScale=new Vector3(importScale,importScale,importScale);
-                
-                /* if(!float.IsNaN(perm.mult)){
-                    Matrix4x4 flip=Matrix4x4.identity;
-                    flip.SetRow(0,new Vector4(-1,0));
-                    verts.Add(flip.MultiplyPoint3x4(pos));
-                }else{ */
-                    //verts.Add(Matrix4x4.identity.Convert3DSMatrixToUnity().MultiplyPoint3x4(pos));
-                    Matrix4x4 flip=Matrix4x4.identity;
-                    flip.SetRow(0,new Vector4(-1,0));
-                    //flip.SetRow(1,new Vector4(0,0,1));
-                    //flip.SetRow(2,new Vector4(0,-1));
-                    //verts.Add(flip.MultiplyPoint3x4(pos));
-                //}
-                
+                Matrix4x4 flip=Matrix4x4.identity;
+                flip.SetRow(0,new Vector4(-1,0));
                 bones[i].localPosition=flip.MultiplyPoint3x4(amf.nodes[i].pos);//new Vector3(amf.nodes[i].pos.x,amf.nodes[i].pos.y,-amf.nodes[i].pos.z);
-
-                
                 bones[i].localRotation=new Quaternion(amf.nodes[i].rot.x,-amf.nodes[i].rot.y,-amf.nodes[i].rot.z,amf.nodes[i].rot.w);//amf.nodes[i].rot;//
-                
-                //bones[i].position=new Vector3(bones[i].position.x,bones[i].position.y,-bones[i].position.z);
-                /* Matrix4x4 trnsfm=Matrix4x4.TRS(amf.nodes[i].pos,amf.nodes[i].rot,Vector3.one);
-                Matrix4x4 trnsfm2=flip*trnsfm;
-                bones[i].localPosition=trnsfm2.ExtractPosition();
-                bones[i].localRotation=trnsfm2.GetRotation(); */
-                //Matrix4x4 trnsfm2=trnsfm.Convert3DSMatrixToUnity();
-                //bones[i].localPosition=trnsfm2.ExtractPosition();
-                //bones[i].localRotation=trnsfm2.GetRotation();
             }
         }
         //third pass to reorder siblings.
@@ -409,7 +338,7 @@ public class AMFImporter : ScriptedImporter
         }
         bones.Insert(0,new GameObject("Root").transform);
         bones[1].parent=bones[0];
-        bones[0].localScale=new Vector3(importScale,importScale,importScale);
+        bones[0].localScale=new Vector3(m_FileScaleFactor*globalScale,m_FileScaleFactor*globalScale,m_FileScaleFactor*globalScale);
         bones[0].localRotation=Quaternion.Euler(rigEulerRoot);//0,-90f,-90f);
         bones[0].localPosition=rigOffset;
         //bones[0].localPosition=Vector3.up;
@@ -444,7 +373,7 @@ Translated from the original MaxScript import
                 //tvRegions.Nodes.Clear()
 
                 EditorUtility.DisplayProgressBar("Parsing "+path,"[0/5] Parsing nodes...",0);
-                readNodes(reader, amf,false,true);
+                readNodes(reader, amf);
                 EditorUtility.DisplayProgressBar("Parsing "+path,"[1/5] Parsing Markers...",(1f/5f));
                 readMarkers(reader, amf);
                 EditorUtility.DisplayProgressBar("Parsing "+path,"[2/5] Parsing Regions...",(2f/5f));
@@ -463,13 +392,11 @@ Translated from the original MaxScript import
             amf.version = reader.ReadSingle();
             amf.modelName = reader.ReadCString();
         }
-        static void readNodes(BinaryReader reader, AMF amf,bool skip=false,bool dumpNames=false)
+        static void readNodes(BinaryReader reader, AMF amf,bool skip=false)
         {
             int count = reader.ReadInt32();
             Debug.Log("Node count:" + count);
             long address = (long)reader.ReadInt32();
-            //Debug.Log("Address:" + address);
-            //Debug.Log("Current Pos:" + reader.BaseStream.Position);
             long fPos = reader.BaseStream.Position;
             List<AMF_Node> nodes = new List<AMF_Node>();
             if (count > 0&&!skip)
@@ -477,30 +404,10 @@ Translated from the original MaxScript import
                 reader.BaseStream.Seek(address, SeekOrigin.Begin);
                 for (int i = 0; i < count; i++)
                 {
-                    string name = reader.ReadCString();
-                    short parentIndex = reader.ReadInt16();
-                    short childIndex = reader.ReadInt16();
-                    short siblingIndex = reader.ReadInt16();
-                    Vector3 pos = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-                    Quaternion rot = new Quaternion(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-                    name = i.ToString().PadLeft(3, '0') + name;
-                    nodes.Add(new AMF_Node(name, parentIndex, childIndex, siblingIndex, pos, rot));
-                    if(dumpNames){
-                        Debug.LogFormat("Node Found:{0} {1}:{2}:{3} at {4}",name,parentIndex,childIndex,siblingIndex,pos.ToString());
-                    }
+                    nodes.Add(new AMF_Node(reader,i));
                 }
                 reader.BaseStream.Seek(fPos, SeekOrigin.Begin);
             }
-            
-            //if (count == 0)
-            //{
-            //    count = reader.ReadInt64();
-            //    Debug.Log("Node count:" + count);
-            //    address = reader.ReadInt64();
-            //    Debug.Log("Address:" + address);
-            //}
-            
-            //Debug.Log(ReadCString(reader));
             amf.nodes=nodes;
         }
         static void readMarkers(BinaryReader reader, AMF amf,bool skip=false)

@@ -53,6 +53,7 @@ using UnityEditor;
         // Prefab
         SerializedProperty m_PreserveHierarchy;
         SerializedProperty m_AddColliders;
+        SerializedProperty m_MergeSkins;
 
         public AMFImporterModelEditor(ScriptedImporterEditor panelContainer)
             : base(panelContainer)
@@ -61,19 +62,20 @@ using UnityEditor;
 
         internal override void OnEnable()
         {
-            m_GlobalScale = serializedObject.FindProperty("importScale");
+            m_GlobalScale = serializedObject.FindProperty("globalScale");
             m_UseFileScale = serializedObject.FindProperty("m_UseFileScale");
             m_FileScale = serializedObject.FindProperty("m_FileScale");
             m_FileScaleUnit = serializedObject.FindProperty("m_FileScaleUnit");
             m_FileScaleFactor = serializedObject.FindProperty("m_FileScaleFactor");
-            m_MeshCompression = serializedObject.FindProperty("m_MeshCompression");
+            /* m_MeshCompression = serializedObject.FindProperty("m_MeshCompression");
             m_ImportBlendShapes = serializedObject.FindProperty("m_ImportBlendShapes");
             m_ImportCameras = serializedObject.FindProperty("m_ImportCameras");
-            m_ImportLights = serializedObject.FindProperty("m_ImportLights");
+            m_ImportLights = serializedObject.FindProperty("m_ImportLights"); */
             m_AddColliders = serializedObject.FindProperty("GenerateMeshCollidersOnClusters");
-            m_SwapUVChannels = serializedObject.FindProperty("swapUVChannels");
+            m_MergeSkins = serializedObject.FindProperty("mergeSkinnedMeshes");
+            //m_SwapUVChannels = serializedObject.FindProperty("swapUVChannels");
             m_GenerateSecondaryUV = serializedObject.FindProperty("GenerateLightmapUVs");
-            m_UnwrapSettings=serializedObject.FindProperty("uvSettings");
+            //m_UnwrapSettings=serializedObject.FindProperty("uvSettings");
             //SerializedObject so = new SerializedObject((UnityEngine.Object)m_UnwrapSettings);
             m_SecondaryUVAngleDistortion = serializedObject.FindProperty("angleError");
             m_SecondaryUVAreaDistortion = serializedObject.FindProperty("areaError");
@@ -88,11 +90,11 @@ using UnityEditor;
             m_TangentImportMode = serializedObject.FindProperty("tangentImportMode");
             m_OptimizeMeshForGPU = serializedObject.FindProperty("optimizeMeshForGPU");
             m_IsReadable = serializedObject.FindProperty("m_IsReadable");
-            m_KeepQuads = serializedObject.FindProperty("keepQuads");
-            m_IndexFormat = serializedObject.FindProperty("indexFormat");
-            m_WeldVertices = serializedObject.FindProperty("weldVertices");
-            m_ImportVisibility = serializedObject.FindProperty("m_ImportVisibility");
-            m_PreserveHierarchy = serializedObject.FindProperty("m_PreserveHierarchy");
+            //m_KeepQuads = serializedObject.FindProperty("keepQuads");
+            //m_IndexFormat = serializedObject.FindProperty("indexFormat");
+            //m_WeldVertices = serializedObject.FindProperty("weldVertices");
+            //m_ImportVisibility = serializedObject.FindProperty("m_ImportVisibility");
+            //Sm_PreserveHierarchy = serializedObject.FindProperty("m_PreserveHierarchy");
         }
 
         static class Styles
@@ -112,6 +114,7 @@ using UnityEditor;
             public static GUIContent IsReadable = EditorGUIUtility.TrTextContent("Read/Write Enabled", "Allow vertices and indices to be accessed from script.");
             public static GUIContent OptimizeMeshForGPU = EditorGUIUtility.TrTextContent("Optimize Mesh", "The vertices and indices will be reordered for better GPU performance.");
             public static GUIContent GenerateColliders = EditorGUIUtility.TrTextContent("Generate Colliders on Clusters", "Should Unity generate mesh colliders for all meshes.");
+            public static GUIContent MergeSkinnedMeshes = EditorGUIUtility.TrTextContent("Merge Skinned Meshes","Merge Skinned meshes as submeshes. Preserving rigging.");
 
             public static GUIContent Geometry = EditorGUIUtility.TrTextContent("Geometry", "Detailed mesh data");
             public static GUIContent KeepQuads = EditorGUIUtility.TrTextContent("Keep Quads", "If model contains quad faces, they are kept for DX11 tessellation.");
@@ -185,6 +188,9 @@ using UnityEditor;
             EditorGUILayout.PropertyField(m_IsReadable, Styles.IsReadable);
             EditorGUILayout.PropertyField(m_OptimizeMeshForGPU, Styles.OptimizeMeshForGPU); */
             EditorGUILayout.PropertyField(m_AddColliders, Styles.GenerateColliders);
+            GUI.enabled=false;
+            EditorGUILayout.PropertyField(m_MergeSkins,Styles.MergeSkinnedMeshes);
+            GUI.enabled=true;
         }
 
         void SceneGUI()
@@ -192,38 +198,35 @@ using UnityEditor;
             GUILayout.Label(Styles.Scene, EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(m_GlobalScale, Styles.ScaleFactor);
 
-           // using (var horizontalScope = new EditorGUILayout.HorizontalScope())
-          //  {
-               // using (var propertyField = new EditorGUI.PropertyScope(horizontalScope.rect, Styles.UseFileScale, m_UseFileScale))
-               // {
+            using (var horizontalScope = new EditorGUILayout.HorizontalScope())
+            {
+                //EditorGUILayout.LabelField(string.Format(L10n.Tr("1{0} (File) to {1}m (Unity)"), m_FileScaleUnit.stringValue, m_FileScaleFactor.floatValue), GUILayout.ExpandWidth(true));
+                using (var propertyField = new EditorGUI.PropertyScope(horizontalScope.rect, Styles.UseFileScale, m_UseFileScale))
+                {
                     //m_UseFileScale.boolValue = EditorGUILayout.Toggle(propertyField.content, m_UseFileScale.boolValue);
                     // Put the unit convertion description on a second line if the Inspector is too small.
-                   /*  if (!EditorGUIUtility.wideMode)
+                    if (!EditorGUIUtility.wideMode)
                     {
                         EditorGUILayout.EndHorizontal();
                         EditorGUILayout.BeginHorizontal();
                         GUILayout.FlexibleSpace();
                         
-                    } */
-                   /*  using (new EditorGUI.DisabledScope(!m_UseFileScale.boolValue))
+                    }
+                    using (new EditorGUI.DisabledScope(!m_UseFileScale.boolValue))
                     {
                         if (!string.IsNullOrEmpty(m_FileScaleUnit.stringValue))
                         {
-                            GUIContent content = m_FileScaleUnit.hasMultipleDifferentValues
-                                ? EditorGUI.mixedValueContent
-                                : GUIContent.(string.Format(L10n.Tr("1{0} (File) to {1}m (Unity)"), m_FileScaleUnit.stringValue, m_FileScaleFactor.floatValue));
-                            EditorGUILayout.LabelField(content, GUILayout.ExpandWidth(true));
+                            GUIContent content = new GUIContent(string.Format(L10n.Tr("1{0} (File) to {1}m (Unity)"), m_FileScaleUnit.stringValue, m_FileScaleFactor.floatValue)); 
+                            EditorGUILayout.LabelField(string.Format(L10n.Tr("1{0} (File) to {1}m (Unity)"), m_FileScaleUnit.stringValue, m_FileScaleFactor.floatValue), GUILayout.ExpandWidth(true));
                         }
-                        else
+                         else
                         {
-                            GUIContent content = m_FileScaleUnit.hasMultipleDifferentValues
-                                ? EditorGUI.mixedValueContent
-                                : GUIContent.Temp(string.Format(L10n.Tr("1 unit (File) to {0}m (Unity)"), m_FileScale.floatValue));
+                            GUIContent content = new GUIContent(string.Format(L10n.Tr("1 unit (File) to {0}m (Unity)"), m_FileScale.floatValue));
                             EditorGUILayout.LabelField(content);
-                        }
-                    } */
-               // }
-           // }
+                        } 
+                    }
+                }
+            }
 
             /* EditorGUILayout.PropertyField(m_ImportBlendShapes, Styles.ImportBlendShapes);
             EditorGUILayout.PropertyField(m_ImportVisibility, Styles.ImportVisibility);
@@ -250,8 +253,8 @@ using UnityEditor;
                 }
             }
 
-            NormalsTangentsGUI(); */
-
+             */
+            NormalsTangentsGUI();
             UvsGUI();
         }
 
@@ -268,32 +271,32 @@ using UnityEditor;
                         m_NormalImportMode.intValue = newValue;
                         // This check is made in CheckConcistency, but because AssetImporterEditor does not serialize the object each update,
                         // We need to double check here for UI consistency.
-                        if (m_NormalImportMode.intValue == (int)ModelImporterNormals.None)
+                        /* if (m_NormalImportMode.intValue == (int)ModelImporterNormals.None)
                             m_TangentImportMode.intValue = (int)ModelImporterTangents.None;
                         else if (m_NormalImportMode.intValue == (int)ModelImporterNormals.Calculate && m_TangentImportMode.intValue == (int)ModelImporterTangents.Import)
-                            m_TangentImportMode.intValue = (int)ModelImporterTangents.CalculateMikk;
+                            m_TangentImportMode.intValue = (int)ModelImporterTangents.CalculateMikk; */
 
 
                         // Also make the blendshape normal mode follow normal mode, with the exception that we never
                         // select Import automatically (since we can't trust imported normals to be correct, and we
                         // also can't detect when they're not).
-                        if (m_NormalImportMode.intValue == (int)ModelImporterNormals.None)
+                        /* if (m_NormalImportMode.intValue == (int)ModelImporterNormals.None)
                             m_BlendShapeNormalCalculationMode.intValue = (int)ModelImporterNormals.None;
                         else
-                            m_BlendShapeNormalCalculationMode.intValue = (int)ModelImporterNormals.Calculate;
+                            m_BlendShapeNormalCalculationMode.intValue = (int)ModelImporterNormals.Calculate; */
                     }
                 }
             }
 
-            if (!m_LegacyComputeAllNormalsFromSmoothingGroupsWhenMeshHasBlendShapes.boolValue && m_ImportBlendShapes.boolValue && !m_LegacyComputeAllNormalsFromSmoothingGroupsWhenMeshHasBlendShapes.hasMultipleDifferentValues)
+           /*  if (!m_LegacyComputeAllNormalsFromSmoothingGroupsWhenMeshHasBlendShapes.boolValue && m_ImportBlendShapes.boolValue && !m_LegacyComputeAllNormalsFromSmoothingGroupsWhenMeshHasBlendShapes.hasMultipleDifferentValues)
             {
                 using (new EditorGUI.DisabledScope(m_NormalImportMode.intValue == (int)ModelImporterNormals.None))
                 {
                     m_BlendShapeNormalCalculationMode.intValue = (int)(ModelImporterNormals)EditorGUILayout.EnumPopup(Styles.BlendShapeNormalsLabel, (ModelImporterNormals)m_BlendShapeNormalCalculationMode.intValue);
                 }
-            }
-
-            if (m_NormalImportMode.intValue != (int)ModelImporterNormals.None || m_BlendShapeNormalCalculationMode.intValue != (int)ModelImporterNormals.None)
+            } */
+/* 
+            if (m_NormalImportMode.intValue != (int)ModelImporterNormals.None)// || m_BlendShapeNormalCalculationMode.intValue != (int)ModelImporterNormals.None)
             {
                 // Normal calculation mode
                 using (var horizontal = new EditorGUILayout.HorizontalScope())
@@ -334,9 +337,9 @@ using UnityEditor;
                     }
                 }
             }
-
+ */
             // Choose the option values and labels based on what the NormalImportMode is
-            if (m_NormalImportMode.intValue != (int)ModelImporterNormals.None)
+            /* if (m_NormalImportMode.intValue != (int)ModelImporterNormals.None)
             {
                 using (var horizontal = new EditorGUILayout.HorizontalScope())
                 {
@@ -350,7 +353,7 @@ using UnityEditor;
                         }
                     }
                 }
-            }
+            } */
         }
 
         bool TangentModeAvailabilityCheck(Enum value)
@@ -382,9 +385,20 @@ using UnityEditor;
                             m_SecondaryUVAngleDistortion.floatValue = Mathf.Round(m_SecondaryUVAngleDistortion.floatValue);
                             m_SecondaryUVAreaDistortion.floatValue = Mathf.Round(m_SecondaryUVAreaDistortion.floatValue);
                         }
+                        if(GUILayout.Button("Reset LightmapSettings")){
+                            UnwrapParam uvs;
+                            UnwrapParam.SetDefaults(out uvs);
+                            m_SecondaryUVHardAngle.floatValue = Mathf.Round(uvs.hardAngle);
+                            m_SecondaryUVPackMargin.floatValue = Mathf.Round(uvs.packMargin*1000);
+                            //Debug.Log(uvs.packMargin*1000);
+                            m_SecondaryUVAngleDistortion.floatValue = Mathf.Round(uvs.angleError*100);
+                            m_SecondaryUVAreaDistortion.floatValue = Mathf.Round(uvs.areaError*100);
+                        }
                     }
                 }
             }
         }
+
+        
     }
 

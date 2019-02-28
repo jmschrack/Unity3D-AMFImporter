@@ -9,6 +9,8 @@ public class AvatarInspectorUI: Editor{
 
     public override void OnInspectorGUI(){
         Avatar avatar=((AvatarInspector)target).GetComponent<Animator>().avatar;
+        if(avatar==null)
+            return;
         EditorGUILayout.LabelField(avatar.name);
         EditorGUILayout.LabelField("Valid:"+avatar.isValid);
         EditorGUILayout.LabelField("IsHuman:"+avatar.isHuman);

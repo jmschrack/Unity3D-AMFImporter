@@ -45,6 +45,15 @@ namespace AdjutantSharp{
                     this.pos = pos;
                     this.rot = rot;
                 }
+
+                public AMF_Node(BinaryReader reader,int index){
+                    this.name = index.ToString().PadLeft(3, '0') +reader.ReadCString();
+                    this.parentIndex = reader.ReadInt16();
+                    this.childIndex = reader.ReadInt16();
+                    this.siblingIndex = reader.ReadInt16();
+                    this.pos = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+                    this.rot = new Quaternion(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+                }
             }
 
             /* public struct RGBA
@@ -330,6 +339,33 @@ namespace AdjutantSharp{
                         }
                     }
                 }
+            }
+            public bool HasBoneWeight(){
+                return weights.Count>0;
+            }
+            public BoneWeight GetBoneWeight(){
+                BoneWeight bw = new BoneWeight();
+                for(int b = 0;b<weights.Count;b++){
+                    switch(b){
+                        case 0:
+                            bw.weight0=weights[b];
+                            bw.boneIndex0=indices[b];
+                        break;
+                        case 1:
+                            bw.weight1=weights[b];
+                            bw.boneIndex1=indices[b];
+                        break;
+                        case 2:
+                            bw.weight2=weights[b];
+                            bw.boneIndex2=indices[b];
+                        break;
+                        case 3:
+                            bw.weight3=weights[b];
+                            bw.boneIndex3=indices[b];
+                        break;
+                    }
+                }
+                return bw;
             }
         }
         public struct AMF_Permutations

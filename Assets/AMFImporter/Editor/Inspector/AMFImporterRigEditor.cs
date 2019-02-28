@@ -292,7 +292,7 @@ using UnityEditor;
 
         void HumanoidGUI()
         {
-            EditorGUILayout.LabelField("HumanoidGUI()");
+            //EditorGUILayout.LabelField("HumanoidGUI()");
             AvatarSourceGUI();
 
             if (!m_CopyAvatar.hasMultipleDifferentValues)
@@ -333,13 +333,14 @@ using UnityEditor;
                 GUILayout.Label("Can't configure avatar in multi-editing mode", EditorStyles.helpBox);
                 return;
             }
-            EditorGUILayout.LabelField("ConfigAvatarGUI");
+            //EditorGUILayout.LabelField("ConfigAvatarGUI");
            /*  if (singleImporter.transformPaths.Length <= HumanTrait.RequiredBoneCount)
             {
                 GUILayout.Label(string.Format("Not enough bones to create human avatar (requires {0})", HumanTrait.RequiredBoneCount, EditorStyles.helpBox));
             } */
 
             // Validation text
+            /* 
             GUIContent validationContent;
             if (m_Avatar && !HasModified())
             {
@@ -370,12 +371,12 @@ using UnityEditor;
                             Selection.activeObject = m_Avatar;
                             AvatarEditor.s_EditImmediatelyOnNextOpen = true;
                         }
-                        GUIUtility.ExitGUI(); */
+                        GUIUtility.ExitGUI(); 
                     //}
                     //else
                     //   Debug.Log("Cannot configure avatar, inspector is locked");
                 }
-            }
+            } */
         }
 
         void CheckAvatar(Avatar sourceAvatar)
@@ -515,7 +516,7 @@ With this option, this model will not create any avatar but only import animatio
             }
 
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("End of InspectorGUI()");
+            //EditorGUILayout.LabelField("End of InspectorGUI()");
             if (!m_AnimationType.hasMultipleDifferentValues)
             {
                 // Show GUI depending on animation type

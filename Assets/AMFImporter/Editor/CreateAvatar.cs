@@ -2,13 +2,18 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
+using AdjutantSharp;
 public class CreateAvatar : EditorWindow
 {
     bool _requiredOnly;
+    bool showBoneFields;
     public GameObject topObject;
     public List<string> boneNames;
     public List<Transform> matchingBones;
     Vector2 scrollPosition;
+    Vector2 scrollPos2;
+    HumanBone[] humanBones;
+    AdjutantSharp.AvatarSetupTool.SkeletonBone[] skeletonBones;
     
     [MenuItem("Tools/Create Avatar Wizard")]
     static void CreateWizard()
@@ -26,16 +31,20 @@ public class CreateAvatar : EditorWindow
        if(boneNames==null){
            SetupBones();
        }
-       scrollPosition=EditorGUILayout.BeginScrollView(scrollPosition);
-       for(int i=0;i<boneNames.Count;i++){
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField(boneNames[i]);
-            while(i>=matchingBones.Count)
-                matchingBones.Add(null);
-            matchingBones[i]=(Transform)EditorGUILayout.ObjectField(matchingBones[i],typeof(Transform),true);
-            EditorGUILayout.EndHorizontal();
+       showBoneFields=EditorGUILayout.Foldout(showBoneFields,"BoneFields");
+       if(showBoneFields){
+           scrollPosition=EditorGUILayout.BeginScrollView(scrollPosition);
+            for(int i=0;i<boneNames.Count;i++){
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField(boneNames[i]);
+                while(i>=matchingBones.Count)
+                    matchingBones.Add(null);
+                matchingBones[i]=(Transform)EditorGUILayout.ObjectField(matchingBones[i],typeof(Transform),true);
+                EditorGUILayout.EndHorizontal();
+            }
+            EditorGUILayout.EndScrollView();
        }
-       EditorGUILayout.EndScrollView();
+       
         if(GUILayout.Button("Build")){
             Avatar avatar=Build(boneNames,matchingBones,topObject);
             Debug.Log("Avatar is valid:"+avatar.isValid);
@@ -45,6 +54,28 @@ public class CreateAvatar : EditorWindow
             AssetDatabase.CreateAsset(avatar,"Assets\\"+topObject.name+".asset");
         }
             
+        /* if(GUILayout.Button("AutoMap")){
+            HumanDescription hd = new HumanDescription();
+            skeletonBones=null;
+            bool hasTranslationDOF;
+            List<string> reports=AvatarSetupTool.SetupHumanSkeleton(topObject,ref hd.human,out skeletonBones,out hasTranslationDOF);
+            hd.hasTranslationDoF=hasTranslationDOF;
+            hd.skeleton=new SkeletonBone[skeletonBones.Length];
+            System.Array.Copy(System.Array.ConvertAll(skeletonBones,(p => (SkeletonBone) p)),hd.skeleton,hd.skeleton.Length);
+
+            Debug.Log("Report size:"+reports.Count);
+            Debug.Log("SkeleBones:"+skeletonBones.Length);
+            Debug.Log("HumanBones:"+humanBones.Length); 
+            
+        }
+        scrollPos2=EditorGUILayout.BeginScrollView(scrollPos2);
+        if(skeletonBones!=null){
+            foreach(HumanBone hb in humanBones){
+                EditorGUILayout.LabelField(hb.boneName);
+            }
+        }
+        
+        EditorGUILayout.EndScrollView(); */
 
 
    }

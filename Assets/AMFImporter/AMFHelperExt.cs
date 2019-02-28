@@ -171,4 +171,9 @@ public static class AMFHelperExt
         return (q1.Equals(q2) || (q1 == q2));
     }
 
+    public static SkinnedMeshRenderer MergeRiggedMeshes(SkinnedMeshRenderer smr1, SkinnedMeshRenderer smr2){
+        Mesh nmesh = new Mesh();
+        //List<Vector3>
+        return null;
+    }
 }
