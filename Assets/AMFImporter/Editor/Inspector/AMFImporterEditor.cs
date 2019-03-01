@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 using UnityEditor.Experimental.AssetImporters;
+namespace AdjutantSharp{
 [CustomEditor(typeof(AMFImporter))]
 public class AMFImporterEditor : ScriptedImporterTabbedEditor
 {
@@ -14,8 +15,8 @@ public class AMFImporterEditor : ScriptedImporterTabbedEditor
     {
         if (tabs == null)
         {
-            tabs = new BaseAssetImporterTabUI[] { new AMFImporterModelEditor(this), new AMFImporterRigEditor(this)};//,  new AMFImporterMaterialEditor(this) };
-            m_TabNames = new string[] {"Model", "Rig"};//,  "Materials"};
+            tabs = new BaseAssetImporterTabUI[] { new AMFImporterModelEditor(this), new AMFImporterRigEditor(this),new AMFInspector(this)};//,  new AMFImporterMaterialEditor(this) };
+            m_TabNames = new string[] {"Model", "Rig","Raw Data"};//,  "Materials"};
         }
         base.OnEnable();
     }
@@ -42,4 +43,5 @@ public class AMFImporterEditor : ScriptedImporterTabbedEditor
 
     // Only show the imported GameObject when the Model tab is active; not when the Animation tab is active
     public override bool showImportedObject { get { return activeTab is AMFImporterModelEditor; } }
+}
 }

@@ -23,6 +23,55 @@ public class SkinnedmeshConverter : EditorWindow
         if(GUILayout.Button("Merge&Convert")){
             ConvertToSkin(MergeAllMeshes(root.GetComponentsInChildren<MeshFilter>()));
         }
+        if(GUILayout.Button("Combine")){
+            SkinnedMeshRenderer[] smr = root.GetComponentsInChildren<SkinnedMeshRenderer>();
+            if(smr.Length>1){
+               List<Transform> bones = new List<Transform>();
+               bones.AddRange(smr[0].bones);
+               List<Material> mats = new List<Material>();
+               mats.AddRange(smr[0].sharedMaterials);
+               mats.AddRange(smr[1].sharedMaterials);
+               Mesh combined = MergeSkinnedMeshes.Merge(smr[0].sharedMesh,smr[1].sharedMesh,bones,smr[1].bones);
+                for(int i=2;i<smr.Length;i++){
+                    combined=MergeSkinnedMeshes.Merge(combined,smr[i].sharedMesh,bones,smr[i].bones);
+                    mats.AddRange(smr[i].sharedMaterials);
+                }
+                GameObject combinedGo = new GameObject("CombinedMesh");
+                SkinnedMeshRenderer combinedTemp=combinedGo.AddComponent<SkinnedMeshRenderer>();
+                combinedTemp.sharedMaterials=mats.ToArray();
+
+                combinedTemp.sharedMesh=combined;
+                
+                combinedTemp.sharedMesh.RecalculateBounds();
+                //combinedTemp.bounds=combined.bounds;
+                Transform rigRoot = Instantiate(smr[0].rootBone);
+                rigRoot.name=smr[0].rootBone.name;
+                combinedTemp.rootBone=rigRoot;
+                combinedTemp.bones=RedoBones(rigRoot,bones).ToArray();
+                GameObject topObject = new GameObject(root.name+"_Combined");
+                rigRoot.parent=topObject.transform;
+                combinedGo.transform.parent=topObject.transform;
+            }
+            
+        }
+    }
+
+    List<Transform> RedoBones(Transform rigRoot,List<Transform> originalBones){
+        Dictionary<string,Transform> nameLookup = new Dictionary<string, Transform>();
+        BuildLookup(nameLookup,rigRoot);
+        List<Transform> newBones = new List<Transform>();
+        foreach(Transform orig in originalBones){
+            newBones.Add(nameLookup[orig.name]);
+        }
+        return newBones;
+    }
+    void BuildLookup(Dictionary<string,Transform> nameLookup,Transform start){
+        if(!nameLookup.ContainsKey(start.name)){
+            nameLookup.Add(start.name,start);
+        }
+        for(int i=0;i<start.childCount;i++){
+            BuildLookup(nameLookup,start.GetChild(i));
+        }
     }
     Mesh MergeAllMeshes(MeshFilter[] meshFilters){
         CombineInstance[] combine = new CombineInstance[meshFilters.Length];

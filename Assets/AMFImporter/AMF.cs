@@ -4,18 +4,20 @@ using System.IO;
 using System;
 using UnityEngine;
 namespace AdjutantSharp{
-
-    public class AMF
+    [System.Serializable]
+    public class AMF 
     {
         public string header;
         public float version;
         public string modelName;
+        [SerializeField]
+        public List<AMF_MarkerGroup> markerGroups;
         public List<AMF_Node> nodes;
 
         public List<ShaderInfo> shaderInfos;
         public List<AMF_RegionInfo> regionInfo;
     }
-
+    [System.Serializable]
     public struct AMF_RegionInfo{
         public string name;
         public List<AMF_Permutations> permutations;
@@ -24,6 +26,7 @@ namespace AdjutantSharp{
             this.permutations=permutations;
         }
     }
+    [System.Serializable]
     public struct AMF_Node
             {
                 public string name;
@@ -76,6 +79,12 @@ namespace AdjutantSharp{
                 }
                 
             } */
+    [System.Serializable]
+    public struct AMF_MarkerGroup{
+        public string name;
+        public List<AMF_Marker> markers;
+    }
+    [System.Serializable]
     public struct AMF_Marker
     {
         public byte regionIndex;
@@ -94,7 +103,7 @@ namespace AdjutantSharp{
         }
 
     }
-
+    [System.Serializable]
      public class ShaderInfo
         {
             public string sName;
@@ -167,6 +176,7 @@ namespace AdjutantSharp{
                 return true;
             }
         }
+        [System.Serializable]
         public class TerrainShader : ShaderInfo
         {
             public string blendPath;
@@ -368,6 +378,7 @@ namespace AdjutantSharp{
                 return bw;
             }
         }
+        [System.Serializable]
         public struct AMF_Permutations
         {
             //public string name;

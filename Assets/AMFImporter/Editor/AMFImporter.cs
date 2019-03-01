@@ -5,10 +5,11 @@ using UnityEngine;
 using UnityEditor;
 using System;
 using AdjutantSharp;
-[ScriptedImporter(2,"amf")]
+[ScriptedImporter(3,"amf")]
 public class AMFImporter : ScriptedImporter
 {
-    readonly string RegularShaderName="Standard";
+    [SerializeField]
+    public AMF amf;
     public float globalScale=1f;
     public string m_FileScaleUnit="in.";
     public bool m_UseFileScale=false;
@@ -45,7 +46,7 @@ public class AMFImporter : ScriptedImporter
         Debug.Log("Attempting to import AMF:"+ctx.assetPath);
         
         EditorUtility.DisplayProgressBar("Parsing"+ctx.assetPath,"Parsing...",0);
-        AMF amf=ParseAMF( ctx.assetPath);
+        this.amf=ParseAMF( ctx.assetPath);
         
         string workingDir=ctx.assetPath.Substring(0,ctx.assetPath.LastIndexOf("/")+1);
         /*
@@ -96,7 +97,10 @@ public class AMFImporter : ScriptedImporter
         */
         
         GameObject root = new GameObject(amf.modelName);
+        //amf.name=amf.modelName+"-RawAMF";
         ctx.AddObjectToAsset(amf.modelName,root);
+        /* ctx.AddObjectToAsset(amf.name,amf);
+        EditorUtility.SetDirty(amf); */
         ctx.SetMainObject(root);
         Dictionary<long,Mesh> meshList =ConvertMeshes(amf,mats,matsHelpers,root);
         EditorUtility.DisplayProgressBar("Parsing "+ctx.assetPath,"[5/5] Finishing up...",(5f/5f));
@@ -111,6 +115,7 @@ public class AMFImporter : ScriptedImporter
         
         Debug.Log("AMF import complete");
         EditorUtility.ClearProgressBar();
+        
     }
     /*
     
@@ -363,6 +368,7 @@ Translated from the original MaxScript import
         public static AMF ParseAMF(string path)
         {
             AMF amf = new AMF();
+            
             using (BinaryReader reader = new BinaryReader(File.Open(path, FileMode.Open)))
             {
 
@@ -416,30 +422,32 @@ Translated from the original MaxScript import
             Debug.Log("Groups Of Markers:[" + groupCount + "]");
             long groupAddress = reader.ReadInt32();
             long fPos = reader.BaseStream.Position;
-            List<List<AMF_Marker>> markerGroup = new List<List<AMF_Marker>>();
+            amf.markerGroups=new List<AMF_MarkerGroup>();
             if (groupCount > 0&&!skip)
             {
                 reader.BaseStream.Seek(groupAddress, SeekOrigin.Begin);
                 for(int i = 0; i < groupCount; i++)
                 {
-                    string groupName = "#" + reader.ReadCString();
+                    AMF_MarkerGroup amg = new AMF_MarkerGroup();
+                    amg.name = "#" + reader.ReadCString();
                     long markerCount = reader.ReadInt32();
                     long markerAddress = reader.ReadInt32();
                     long cPos = reader.BaseStream.Position;
-                    List<AMF_Marker> markers = new List<AMF_Marker>();
+                    amg.markers = new List<AMF_Marker>();
                     if (markerCount > 0)
                     {
                         reader.BaseStream.Seek(markerAddress, SeekOrigin.Begin);
                         for(int j = 0; j < markerCount; j++)
                         {
-                            markers.Add(new AMF_Marker(reader));
+                            amg.markers.Add(new AMF_Marker(reader));
                         }
                         
                     }
-                    markerGroup.Add(markers);
+                    amf.markerGroups.Add(amg);
                     reader.BaseStream.Seek(cPos, SeekOrigin.Begin);
                 }
                 reader.BaseStream.Seek(fPos, SeekOrigin.Begin);
+                
             }
             
         }

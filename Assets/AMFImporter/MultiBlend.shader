@@ -165,14 +165,14 @@
             //o.Alpha = c.a;
         }
         ENDCG
-        Blend One One
+        BlendOp Max
         CGPROGRAM
         
         #pragma surface surf Standard fullforwardshadows
         #pragma target 3.5
 
         #include "UnityStandardUtils.cginc"
-
+//One One
 
         struct Input
         {
