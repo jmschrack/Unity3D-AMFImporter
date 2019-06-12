@@ -225,8 +225,27 @@ public static class AMFHelperExt
         submesh.uv=uvs.ToArray();
         submesh.SetTriangles(tris,0);
         submesh.RecalculateNormals();
-        
+        submesh.RecalculateBounds();
         return submesh;
+    }
+    /**
+    This is done from meshfilter so we can shift the gameObject to counter shifting the pivots.
+     */
+    public static void RecenterPivot(this MeshFilter mf){
+        Bounds b = mf.sharedMesh.bounds;
+        
+        Vector3 worldOffset=mf.transform.TransformPoint(Vector3.zero)-mf.transform.TransformPoint(b.center);
+        //Debug.Log(mf.gameObject.name+":"+mf.transform.position+"vs"+worldPivot);
+        Vector3 offset=-b.center;
+
+        Vector3[] verts = mf.sharedMesh.vertices;
+        for(int i=0;i<verts.Length;i++){
+            verts[i]+=offset;
+        }
+        mf.sharedMesh.vertices=verts;
+        mf.sharedMesh.RecalculateBounds();
+        mf.transform.position-=worldOffset;
+
     }
 }
 }

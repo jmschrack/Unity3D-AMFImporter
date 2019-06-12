@@ -28,6 +28,8 @@ using UnityEditor;
         SerializedProperty m_OptimizeMeshForGPU;
 
         // Geometry
+        SerializedProperty m_splitSubmeshes;
+        SerializedProperty m_RecenterPivots;
         SerializedProperty m_KeepQuads;
         SerializedProperty m_WeldVertices;
         SerializedProperty m_IndexFormat;
@@ -54,7 +56,7 @@ using UnityEditor;
         SerializedProperty m_PreserveHierarchy;
         SerializedProperty m_AddColliders;
         SerializedProperty m_MergeSkins;
-        SerializedProperty m_splitSubmeshes;
+        
 
         public AMFImporterModelEditor(ScriptedImporterEditor panelContainer)
             : base(panelContainer)
@@ -92,6 +94,7 @@ using UnityEditor;
             m_OptimizeMeshForGPU = serializedObject.FindProperty("optimizeMeshForGPU");
             m_IsReadable = serializedObject.FindProperty("m_IsReadable");
             m_splitSubmeshes=serializedObject.FindProperty("splitSubmeshes");
+            m_RecenterPivots=serializedObject.FindProperty("RecenterPivots");
             //m_KeepQuads = serializedObject.FindProperty("keepQuads");
             //m_IndexFormat = serializedObject.FindProperty("indexFormat");
             //m_WeldVertices = serializedObject.FindProperty("weldVertices");
@@ -258,6 +261,7 @@ using UnityEditor;
 
              */
             EditorGUILayout.PropertyField(m_splitSubmeshes);
+            EditorGUILayout.PropertyField(m_RecenterPivots);
             NormalsTangentsGUI();
             UvsGUI();
         }

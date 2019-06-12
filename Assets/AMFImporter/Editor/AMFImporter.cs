@@ -35,6 +35,7 @@ public class AMFImporter : ScriptedImporter
     }
     
     public bool GenerateMeshCollidersOnClusters;
+    public bool RecenterPivots=false;
 
     UnwrapParam uvSettings = new UnwrapParam();
     public float angleError=8f;
@@ -238,6 +239,10 @@ public class AMFImporter : ScriptedImporter
                     MeshFilter mf =meshNode.AddComponent<MeshFilter>();
                     mf.sharedMesh=temp;
                     mr = meshNode.AddComponent<MeshRenderer>();
+                    if(RecenterPivots&&!splitSubmeshes){
+                        //for safety, lets guard this against splitting submeshes.
+                        mf.RecenterPivot();
+                    }
                 }
                 
                 
@@ -280,16 +285,25 @@ public class AMFImporter : ScriptedImporter
                     for(int i=0;i<mf.sharedMesh.subMeshCount;i++){
                         int matIndex=Mathf.Min(i,r.sharedMaterials.Length);
                         GameObject tempGo = new GameObject(go.name+"_"+r.sharedMaterials[matIndex].name);
-                        tempGo.AddComponent<MeshFilter>().sharedMesh=mf.sharedMesh.ExtractSubmesh(i);
+                        MeshFilter tempMF=tempGo.AddComponent<MeshFilter>();
+                        tempMF.sharedMesh=mf.sharedMesh.ExtractSubmesh(i);
+                        
                         tempGo.AddComponent<MeshRenderer>().sharedMaterial=r.sharedMaterials[matIndex];
                         GameObjectUtility.SetParentAndAlign(tempGo,go);
+                        if(RecenterPivots){
+                            tempMF.RecenterPivot();
+                        }
                         meshCache.Add(fakeKey,tempGo.GetComponent<MeshFilter>().sharedMesh);
                         fakeKey++;
+
                     }
                     DestroyImmediate(mf);
                     DestroyImmediate(r);
                     
                 }else{
+                    if(RecenterPivots){
+                            go.GetComponent<MeshFilter>().RecenterPivot();
+                        }
                     meshCache.Add(fakeKey,go.GetComponent<MeshFilter>().sharedMesh);
                     fakeKey++;
                 }
