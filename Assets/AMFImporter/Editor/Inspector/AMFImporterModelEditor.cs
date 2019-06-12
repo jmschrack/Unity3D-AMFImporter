@@ -54,6 +54,7 @@ using UnityEditor;
         SerializedProperty m_PreserveHierarchy;
         SerializedProperty m_AddColliders;
         SerializedProperty m_MergeSkins;
+        SerializedProperty m_splitSubmeshes;
 
         public AMFImporterModelEditor(ScriptedImporterEditor panelContainer)
             : base(panelContainer)
@@ -90,6 +91,7 @@ using UnityEditor;
             m_TangentImportMode = serializedObject.FindProperty("tangentImportMode");
             m_OptimizeMeshForGPU = serializedObject.FindProperty("optimizeMeshForGPU");
             m_IsReadable = serializedObject.FindProperty("m_IsReadable");
+            m_splitSubmeshes=serializedObject.FindProperty("splitSubmeshes");
             //m_KeepQuads = serializedObject.FindProperty("keepQuads");
             //m_IndexFormat = serializedObject.FindProperty("indexFormat");
             //m_WeldVertices = serializedObject.FindProperty("weldVertices");
@@ -238,6 +240,7 @@ using UnityEditor;
         void GeometryGUI()
         {
             GUILayout.Label(Styles.Geometry, EditorStyles.boldLabel);
+
             /* EditorGUILayout.PropertyField(m_KeepQuads, Styles.KeepQuads);
             EditorGUILayout.PropertyField(m_WeldVertices, Styles.WeldVertices);
             using (var horizontal = new EditorGUILayout.HorizontalScope())
@@ -254,6 +257,7 @@ using UnityEditor;
             }
 
              */
+            EditorGUILayout.PropertyField(m_splitSubmeshes);
             NormalsTangentsGUI();
             UvsGUI();
         }

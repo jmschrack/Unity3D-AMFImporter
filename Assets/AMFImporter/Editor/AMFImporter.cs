@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEditor;
 using System;
 using AdjutantSharp;
-[ScriptedImporter(3,"amf")]
+[ScriptedImporter(4,"amf")]
 public class AMFImporter : ScriptedImporter
 {
     [SerializeField]
@@ -28,7 +28,7 @@ public class AMFImporter : ScriptedImporter
     public bool copyAvatar=false;
     public Avatar m_LastHumanDescriptionAvatarSource;
     public bool createDuplicateInstances;
-
+    public bool splitSubmeshes=false;
     public bool GenerateLightmapUVs=false;
     public bool CreateSkinnedMeshes{
         get{return rigType!=RigType.None;}
@@ -42,7 +42,10 @@ public class AMFImporter : ScriptedImporter
     public float hardAngle=88f;
     public float packMargin=4f;
     
+    public bool shouldReimport=false;
     public override void OnImportAsset(AssetImportContext ctx){
+        /* if(amf!=null&&!shouldReimport)
+            return; */
         Debug.Log("Attempting to import AMF:"+ctx.assetPath);
         
         EditorUtility.DisplayProgressBar("Parsing"+ctx.assetPath,"Parsing...",0);
@@ -115,7 +118,7 @@ public class AMFImporter : ScriptedImporter
         
         Debug.Log("AMF import complete");
         EditorUtility.ClearProgressBar();
-        
+        shouldReimport=false;
     }
     /*
     
@@ -126,7 +129,7 @@ public class AMFImporter : ScriptedImporter
         Dictionary<long,Mesh> meshCache = new Dictionary<long,Mesh>();
         float meshComplete=0;
         float totalMeshCount=0;
-
+        List<GameObject> meshNodes = new List<GameObject>();
         List<Transform> nodes=null;
         if(CreateSkinnedMeshes){
             nodes=CreateRigging(amf);
@@ -252,19 +255,52 @@ public class AMFImporter : ScriptedImporter
                     
                 }
                 mr.sharedMaterials=materials;
+
+
+
+
                 AMFMaterialHelper mh = meshNode.AddComponent<AMFMaterialHelper>();
                 mh.shaderSettings=si;
                 
                 //mh.SaveData(amf.shaderInfos[perm.meshes[0].shaderIndex]);
                 //Debug.LogFormat("Transform: Pos:{0} Rot:{1} Scale:{2}",perm.matrix4x4.ExtractPosition(),perm.matrix4x4.ExtractRotation(),perm.matrix4x4.ExtractScale());
                 meshComplete++;
+                meshNodes.Add(meshNode);
             }
         }
         
+        //This is annoying to do this here, but we have to wait until after the mesh cache is fully populated before we start splitting submeshes out.
+        if(splitSubmeshes){
+            meshCache.Clear();
+            long fakeKey=0;
+            foreach(GameObject go in meshNodes){
+                MeshFilter mf = go.GetComponent<MeshFilter>();
+                if(mf!=null&&mf.sharedMesh.subMeshCount>1){
+                    Renderer r = go.GetComponent<MeshRenderer>();
+                    for(int i=0;i<mf.sharedMesh.subMeshCount;i++){
+                        int matIndex=Mathf.Min(i,r.sharedMaterials.Length);
+                        GameObject tempGo = new GameObject(go.name+"_"+r.sharedMaterials[matIndex].name);
+                        tempGo.AddComponent<MeshFilter>().sharedMesh=mf.sharedMesh.ExtractSubmesh(i);
+                        tempGo.AddComponent<MeshRenderer>().sharedMaterial=r.sharedMaterials[matIndex];
+                        GameObjectUtility.SetParentAndAlign(tempGo,go);
+                        meshCache.Add(fakeKey,tempGo.GetComponent<MeshFilter>().sharedMesh);
+                        fakeKey++;
+                    }
+                    DestroyImmediate(mf);
+                    DestroyImmediate(r);
+                    
+                }else{
+                    meshCache.Add(fakeKey,go.GetComponent<MeshFilter>().sharedMesh);
+                    fakeKey++;
+                }
+            }
+        }
+
         return meshCache;
     }
 
     Mesh ConvertInstanceToMesh(AMF_Permutations perm){
+        Quaternion q = Quaternion.AngleAxis(90f,Vector3.up);
         Mesh temp= new Mesh();
         temp.name=perm.pName;
         List<Vector3> verts = new List<Vector3>();
@@ -282,7 +318,7 @@ public class AMFImporter : ScriptedImporter
                 flip.SetRow(1,new Vector4(0,0,1));
                 flip.SetRow(2,new Vector4(0,-1));
             }
-            verts.Add(flip.MultiplyPoint3x4(pos));
+            verts.Add(q*(flip.MultiplyPoint3x4(pos)));
             uvs.Add(perm.vertices[i].tex);
             //texMatrix=perm.vertices[i].tmat;
             if(perm.vertices[i].HasBoneWeight()){
@@ -313,6 +349,79 @@ public class AMFImporter : ScriptedImporter
         return temp;
 
     }
+
+    List<Mesh> ConvertInstanceToMesh(AMF_Permutations perm,bool splitSubmeshes){
+        List<Mesh> meshes = new List<Mesh>();
+
+        List<Vector3> verts = new List<Vector3>();
+        List<Vector2> uvs=new List<Vector2>();
+        //List<int> badIndex = new List<int>();
+        //int[] identity=new int[perm.vertices.Count];
+        List<BoneWeight> bones = new List<BoneWeight>();
+
+        //Matrix4x4 texMatrix=Matrix4x4.identity;
+        for(int i=0;i<perm.vertices.Count;i++){
+            Vector3 pos = perm.vertices[i].pos;
+            Matrix4x4 flip=Matrix4x4.identity;
+            flip.SetRow(0,new Vector4(-1,0));
+            if(float.IsNaN(perm.mult)){
+                flip.SetRow(1,new Vector4(0,0,1));
+                flip.SetRow(2,new Vector4(0,-1));
+            }
+            verts.Add(flip.MultiplyPoint3x4(pos));
+            uvs.Add(perm.vertices[i].tex);
+            //texMatrix=perm.vertices[i].tmat;
+            if(perm.vertices[i].HasBoneWeight()){
+                bones.Add(perm.vertices[i].GetBoneWeight());
+            }
+        }
+        Mesh temp;
+        Dictionary<int,int> remap = new Dictionary<int,int>();
+        int[] tempfaces;
+        List<Vector3> tempverts;
+        List<Vector2> tempuvs;
+        for(int s=0;s<perm.meshes.Count;s++){
+            temp = new Mesh();
+            remap.Clear();
+            temp.name=perm.pName+":"+s;
+            meshes.Add(temp);
+            AMF_Mesh sinfo=perm.meshes[s];
+            //sinfo.faceCount
+            tempfaces = new int[sinfo.faceCount*3];
+            tempverts = new List<Vector3>();
+            tempuvs = new List<Vector2>();
+            //populate vertex array and remap
+            for(int f=0;f<sinfo.faceCount;f++){
+               Vector3Int face= perm.faces[f+sinfo.startingFace];
+               if(!remap.ContainsKey(face.x)){
+                   tempverts.Add(verts[face.x]);
+                   tempuvs.Add(uvs[face.x]);
+                   remap.Add(face.x,tempverts.Count-1);
+               }
+               tempfaces[f/3]=remap[face.x];
+               
+               if(!remap.ContainsKey(face.y)){
+                   tempverts.Add(verts[face.y]);
+                   tempuvs.Add(uvs[face.y]);
+                   remap.Add(face.y,tempverts.Count-1);
+               }
+               tempfaces[f/3+1]=remap[face.y];
+
+               if(!remap.ContainsKey(face.z)){
+                   tempverts.Add(verts[face.z]);
+                   tempuvs.Add(uvs[face.z]);
+                   remap.Add(face.z,tempverts.Count-1);
+               }
+               tempfaces[f/3+2]=remap[face.z];
+            }
+            temp.vertices=tempverts.ToArray();
+            temp.uv=tempuvs.ToArray();
+            temp.SetTriangles(tempfaces,0);
+        }
+
+        return meshes;
+    }
+
     /*
     
     Create Bone Hierarchy

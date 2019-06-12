@@ -2,7 +2,11 @@
 using System.Collections.Generic;
 using UnityEngine;
 using System.IO;
-using AdjutantSharp;
+
+using System;
+namespace AdjutantSharp{
+
+
 public static class AMFHelperExt 
 {
     public static Color32 ReadColor32(this BinaryReader reader){
@@ -30,15 +34,33 @@ public static class AMFHelperExt
         Vector3 temp = reader.ReadVector3();
         return new Vector4(temp.x,temp.y,temp.z,w);
     }
-    public static string ReadCString(this BinaryReader reader)
+    
+    
+    
+    /* public static uint ReadBEUInt32(this BinaryReader reader){
+        byte[] b = new byte[4];
+        b[0]=reader.ReadByte();
+        b[1]=reader.ReadByte();
+        b[2]=reader.ReadByte();
+        b[3]=reader.ReadByte();
+        System.BitConverter.
+        System.BitConverter.ToUInt32(b,0);
+    } */
+    
+    public static UInt16 ReverseBytes(this UInt16 value)
     {
-        List<byte> bytes = new List<byte>();
-        do
-        {
-            bytes.Add(reader.ReadByte());
-        } while (bytes[bytes.Count - 1] != (byte)0);
-        
-        return System.Text.Encoding.UTF8.GetString(bytes.GetRange(0, bytes.Count - 1).ToArray());
+        return (UInt16)((value & 0xFFU) << 8 | (value & 0xFF00U) >> 8);
+    }
+    public static UInt32 ReverseBytes(this UInt32 value)
+    {
+        return (value & 0x000000FFU) << 24 | (value & 0x0000FF00U) << 8 | (value & 0x00FF0000U) >> 8 | (value & 0xFF000000U) >> 24;
+    }
+    public static UInt64 ReverseBytes(this UInt64 value)
+    {
+        return (value & 0x00000000000000FFUL) << 56 | (value & 0x000000000000FF00UL) << 40 |
+                (value & 0x0000000000FF0000UL) << 24 | (value & 0x00000000FF000000UL) << 8 |
+                (value & 0x000000FF00000000UL) >> 8 | (value & 0x0000FF0000000000UL) >> 24 |
+                (value & 0x00FF000000000000UL) >> 40 | (value & 0xFF00000000000000UL) >> 56;
     }
 
     public static Matrix4x4 ReadMatrix4x4(this BinaryReader reader, bool rows=false){
@@ -176,4 +198,35 @@ public static class AMFHelperExt
         //List<Vector3>
         return null;
     }
+
+   
+
+    public static Mesh ExtractSubmesh(this Mesh m, int submeshIndex,bool collapseVertices=true){
+        Mesh submesh = new Mesh();
+        submesh.name=m.name+"_"+submeshIndex;
+        int[] tris=m.GetTriangles(submeshIndex);
+        int[] remap = new int[m.vertexCount];
+        for(int i=0;i<remap.Length;i++){remap[i]=-1;}
+        List<Vector3> verts = new List<Vector3>();
+        List<Vector2> uvs = new List<Vector2>();
+        Vector3[] vertices = m.vertices;
+        Vector2[] uvcoords = m.uv;
+        //add verts, check remap if necessary
+        //redo tris list
+        for(int i=0;i<tris.Length;i++){
+            if(remap[tris[i]]==-1){
+                remap[tris[i]]=verts.Count;
+                verts.Add(vertices[tris[i]]);
+                uvs.Add(uvcoords[tris[i]]);
+            }
+            tris[i]=remap[tris[i]];
+        }
+        submesh.vertices=verts.ToArray();
+        submesh.uv=uvs.ToArray();
+        submesh.SetTriangles(tris,0);
+        submesh.RecalculateNormals();
+        
+        return submesh;
+    }
+}
 }

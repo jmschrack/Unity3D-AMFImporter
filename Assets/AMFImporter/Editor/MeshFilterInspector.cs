@@ -12,6 +12,8 @@ public class MeshFilterInspector : Editor
         EditorGUILayout.LabelField("Verts:"+m.vertexCount);
         EditorGUILayout.LabelField("Submeshes:"+m.subMeshCount);
         EditorGUILayout.LabelField("Tris:"+m.triangles.Length/3);
+        EditorGUILayout.LabelField("Bounds:"+m.bounds.ToString());
+        EditorGUILayout.LabelField("WorldCenter:"+mf.transform.TransformPoint(m.bounds.center));
         /* for(int i=0;i<m.subMeshCount;i++){
             EditorGUILayout.LabelField(i+":"+m.GetTriangles(i).Length/3);
         } */

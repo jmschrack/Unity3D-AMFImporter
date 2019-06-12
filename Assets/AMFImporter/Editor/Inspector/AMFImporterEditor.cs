@@ -34,6 +34,7 @@ public class AMFImporterEditor : ScriptedImporterTabbedEditor
         return base.HasPreviewGUI() && targets.Length < 2;
     }
 
+  
     public override GUIContent GetPreviewTitle()
     {
         
