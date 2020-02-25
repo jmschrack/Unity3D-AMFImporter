@@ -18,7 +18,7 @@
 
 * [About the Project](#about-the-project)
 * [Getting Started](#getting-started)
-* [Usage](#usage)
+* [Warning](#warning)
 * [Troubleshooting](#troubleshooting)
 * [Contact](#contact)
 * [Acknowledgements](#acknowledgements)
