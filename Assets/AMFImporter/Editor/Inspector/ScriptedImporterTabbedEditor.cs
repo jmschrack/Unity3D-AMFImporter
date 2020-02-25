@@ -21,6 +21,7 @@ using UnityEditor;
 
         public override void OnEnable()
         {
+            base.OnEnable();
             foreach (var tab in m_Tabs)
             {
                 tab.OnEnable();

@@ -60,6 +60,10 @@
             c*=tex2D(_DetailMap,IN.uv_DetailMap)*unity_ColorSpaceDouble;//half4(LerpWhiteTo(tex2D(_DetailMap,IN.uv_DetailMap)*unity_ColorSpaceDouble,1).rgb,1);
             d*=tex2D(_OverlayDet,IN.uv_OverlayDet)*unity_ColorSpaceDouble;
             o.Albedo = lerp(c,d,blend);
+            /* fixed4 normalTexMap = tex2D(_BumpTex, IN.uv_MainTex);
+			o.Normal = UnpackNormal(normalTexMap);
+			//invert
+			o.Normal = float3(o.Normal.x * -1, o.Normal.y * -1, o.Normal.z); */
             o.Normal=lerp(tex2D(_BumpMap,IN.uv_BumpMap),tex2D(_OverlayBump,IN.uv_OverlayBump),blend);
             // Metallic and smoothness come from slider variables
             o.Metallic = _Metallic;

@@ -202,7 +202,7 @@ public class AMFShaderInfo : ScriptableObject{
         
         
         m.shader=Shader.Find(_TerrainShader);
-        m.SetFloat("_Intensity",2f);
+        //m.SetFloat("_Intensity",1f);
         Texture2D tex = (Texture2D)AssetDatabase.LoadAssetAtPath(workingDir+blendPath,typeof(Texture2D));
         if(tex!=null){
             m.SetTexture("_BlendTex",tex);
@@ -219,6 +219,7 @@ public class AMFShaderInfo : ScriptableObject{
         if(tex!=null){
             m.SetTexture(texName,tex);
             m.SetTextureScale(texName,tiles[0]);
+            m.EnableKeyword("_ENABLE_R_ON");
         }
         if(bumpmaps.Length>0){
             tex = (Texture2D)AssetDatabase.LoadAssetAtPath(workingDir+bumpmaps[0],typeof(Texture2D));
@@ -234,7 +235,7 @@ public class AMFShaderInfo : ScriptableObject{
                 m.SetTextureScale("_DetailAlbedoMap",detTiles[0]);
             }
         }
-
+        string keyword="";
         for(int i=1;i<paths.Length;i++){
             texName=null;
             switch(i){
@@ -243,12 +244,15 @@ public class AMFShaderInfo : ScriptableObject{
                     break; */
                 case 1:
                     texName="_GTex";
+                    keyword="_ENABLE_G_ON";
                     break;
                 case 2:
                     texName="_BTex";
+                    keyword="_ENABLE_B_ON";
                     break;
                 case 3:
                     texName="_ATex";
+                    keyword="_ENABLE_A_ON"; 
                     break;
                 default:
                     texName=null;
@@ -260,6 +264,7 @@ public class AMFShaderInfo : ScriptableObject{
             if(tex!=null){
                 m.SetTexture(texName,tex);
                 m.SetTextureScale(texName,tiles[i]);
+                m.EnableKeyword(keyword);
             }
                 
             

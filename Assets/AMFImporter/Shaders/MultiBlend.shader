@@ -2,41 +2,40 @@
 {
     Properties
     {
-        _Color ("Color", Color) = (1,1,1,1)
+        _Color ("Base Color", Color) = (0,0,0,0)
         //_MainTex ("Overlay", 2D) = "white" {}
-        _Glossiness("Overall Smoothness",Range(0,1))=1
-        [Toggle]_OverlayAlpha("Has Alpha",Float)=0
+        //_Glossiness("Overall Smoothness",Range(0,1))=1
         _BlendTex("Blend Map",2D)=""{}
         //_BaseMaps("Base maps",2DArray)=""{}
         //_BaseTiles("UV Scale",floatarray) ={}
+
+        [Toggle] _ENABLE_R ("Has R Channel?", Float) = 0
         _MainTex("R Tex",2D)="black"{}
-        [Toggle]_RTexAlpha("Has Alpha",Float)=0
         _BumpMap("R Tex Normal",2D)="bump"{}
         _DetailAlbedoMap("R Tex Detail",2D)="grey"{}
         _RTexGloss ("R Smoothness", Range(0,1)) = 1
 
+        [Toggle] _ENABLE_G ("Has G Channel?", Float) = 0
         _GTex("G Tex",2D)="black"{}
-        [Toggle]_GTexAlpha("Has Alpha",Float)=0
         _GTexBump("G Tex Normal",2D)="bump"{}
         _GTexDet("G Tex Detail",2D)="grey"{}
         _GTexGloss("G Smoothness",Range(0,1))=1
-        //_GTexEmissive("G Emissive",Range(0,2))=0
 
+        [Toggle] _ENABLE_B ("Has B Channel?", Float) = 0
         _BTex("B Tex",2D)="black"{}
-        [Toggle]_BTexAlpha("Has Alpha",Float)=0
         _BTexBump("G Tex Normal",2D)="bump"{}
         _BTexDet("B Tex Detail",2D)="grey"{}
         _BTexGloss("B Smoothness",Range(0,1))=1
 
+        [Toggle] _ENABLE_A ("Has A Channel?", Float) = 0
         _ATex("A Tex",2D)="black"{}
-        [Toggle]_ATexAlpha("Has Alpha",Float)=0
         _ATexBump("A Tex Normal",2D)="bump"{}
         _ATexDet("A Tex Detail",2D)="grey"{} 
         _ATexGloss("A Smoothness",Range(0,1))=1
 
 
-        
-        _NormIntensity("Normal Intensity",Float)=2
+        [Toggle] _ENABLE_HALOFLIP ("Halo3 style normal maps?",Float) =0
+        _NormIntensity("Normal Intensity",Float)=1
         //_Metallic ("Metallic", Range(0,1)) = 0.0
     }
     SubShader
@@ -47,7 +46,11 @@
         CGPROGRAM
         // Physically based Standard lighting model, and enable shadows on all light types
         #pragma surface surf Standard fullforwardshadows
-        
+        #pragma multi_compile_local  _ENABLE_R_OFF _ENABLE_R_ON
+        #pragma multi_compile_local  _ENABLE_G_OFF _ENABLE_G_ON
+        #pragma multi_compile_local  _ENABLE_B_OFF _ENABLE_B_ON
+        #pragma multi_compile_local  _ENABLE_A_OFF _ENABLE_A_ON
+        #pragma multi_compile_local _ENABLE_HALOFLIP_OFF _ENABLE_HALOFLIP_ON
         // Use shader model 3.0 target, to get nicer looking lighting
         #pragma target 3.5
 
@@ -134,9 +137,25 @@
             //fixed4 overlay = tex2D(_RTexDet,IN.uv_RTexDet);
             //overlay.a*=_OverlayAlpha;
             //float3 depthUv=float3(IN.uv_MainTex.x,IN.uv_MainTex.y,0);
+            float4 col=_Color;
+            #ifdef _ENABLE_R_ON
+            col=lerp(col,Overlay(tex2D(_MainTex,IN.uv_MainTex),tex2D(_DetailAlbedoMap,IN.uv_DetailAlbedoMap))*half4(1.0, 1.0, 1.0, _RTexGloss),blend.r);
+            #endif
             
-            
-            fixed4 mixedAlbedo=Overlay(tex2D(_MainTex,IN.uv_MainTex),tex2D(_DetailAlbedoMap,IN.uv_DetailAlbedoMap))*blend.r*half4(1.0, 1.0, 1.0, _RTexGloss);
+            #ifdef _ENABLE_G_ON
+            col=lerp(col,Overlay(tex2D(_GTex,IN.uv_GTex),tex2D(_GTexDet,IN.uv_GTexDet))*half4(1.0, 1.0, 1.0, _GTexGloss),blend.g);
+            #endif
+
+            #ifdef _ENABLE_B_ON
+            col=lerp(col,Overlay(tex2D(_BTex,IN.uv_BTex),tex2D(_BTexDet,IN.uv_BTexDet))*half4(1.0, 1.0, 1.0, _BTexGloss),blend.b);
+            #endif
+
+            #ifdef _ENABLE_A_ON
+            col=lerp(col,Overlay(tex2D(_ATex,IN.uv_ATex),tex2D(_ATexDet,IN.uv_ATexDet))*half4(1.0, 1.0, 1.0, _ATexGloss),blend.a);
+            #endif
+
+
+            /* fixed4 mixedAlbedo=Overlay(tex2D(_MainTex,IN.uv_MainTex),tex2D(_DetailAlbedoMap,IN.uv_DetailAlbedoMap))*blend.r*half4(1.0, 1.0, 1.0, _RTexGloss);
             
             
             //depthUv.z=1;
@@ -146,16 +165,17 @@
             mixedAlbedo+=Overlay(tex2D(_BTex,IN.uv_BTex),tex2D(_BTexDet,IN.uv_BTexDet))*blend.b*half4(1.0, 1.0, 1.0, _BTexGloss);
             
             //depthUv.z=3;
-            mixedAlbedo+=Overlay(tex2D(_ATex,IN.uv_ATex),tex2D(_ATexDet,IN.uv_ATexDet))*blend.a*half4(1.0, 1.0, 1.0, _ATexGloss);
+            mixedAlbedo+=Overlay(tex2D(_ATex,IN.uv_ATex),tex2D(_ATexDet,IN.uv_ATexDet))*blend.a*half4(1.0, 1.0, 1.0, _ATexGloss); */
             
             
            /*  fixed baseL= Luminance(c);//c.r * 0.3 + c.g * 0.59 + c.b * 0.11;
             fixed overlayL = overlay.r * 0.3 + overlay.g * 0.59 + overlay.b * 0.11; */
             //step(0.5,baseL);
-            o.Smoothness = mixedAlbedo.a*_Glossiness;
+            o.Albedo=col;
+            o.Smoothness = col.a;//*_Glossiness;
             //c=lerp(_Intensity*c*overlay,1-_Intensity*(1-c)*(1-overlay),step(0.5,baseL));
             //c=c+_Intensity*(2*overlay-1);
-            o.Albedo = mixedAlbedo*_Color;
+            //o.Albedo = mixedAlbedo;//*_Color;
             //o.Emission=_GTexEmissive*tex2D(_GTex,IN.uv_GTex)*tex2D(_GTex,IN.uv_GTex).a*blend.g;
             //o.Normal = float3(0, 0, .01);
             // Metallic and smoothness come from slider variables
@@ -169,6 +189,11 @@
         CGPROGRAM
         
         #pragma surface surf Standard fullforwardshadows
+        #pragma multi_compile_local  _ENABLE_R_OFF _ENABLE_R_ON
+        #pragma multi_compile_local  _ENABLE_G_OFF _ENABLE_G_ON
+        #pragma multi_compile_local  _ENABLE_B_OFF _ENABLE_B_ON
+        #pragma multi_compile_local  _ENABLE_A_OFF _ENABLE_A_ON
+        #pragma multi_compile_local _ENABLE_HALOFLIP_OFF _ENABLE_HALOFLIP_ON
         #pragma target 3.5
 
         #include "UnityStandardUtils.cginc"
@@ -194,13 +219,36 @@
         sampler2D _ATexBump;
         float _NormIntensity;
 
+        float3 UnpackBump(half4 input,half intensity){
+            float3 b = UnpackScaleNormal(input,intensity);
+            #ifdef _ENABLE_HALOFLIP_ON
+                b = float3(b.x * -1, b.y * -1, b.z);
+            #endif
+            return b;
+        }
+
         void surf (Input IN, inout SurfaceOutputStandard o)
         {
             fixed4 blend = tex2D(_BlendTex,IN.uv_BlendTex);
-            float3 mixedNormal=UnpackScaleNormal(tex2D(_BumpMap,IN.uv_BumpMap),_NormIntensity)*blend.r;
-            mixedNormal+=UnpackScaleNormal(tex2D(_GTexBump,IN.uv_GTexBump),_NormIntensity)*blend.g;
-            mixedNormal+=UnpackScaleNormal(tex2D(_BTexBump,IN.uv_BTexBump),_NormIntensity)*blend.b;
-            mixedNormal+=UnpackScaleNormal(tex2D(_ATexBump,IN.uv_ATexBump),_NormIntensity)*blend.a;
+
+            float3 mixedNormal=float3(0.5,0.5,1);
+
+            #ifdef _ENABLE_R_ON
+            mixedNormal=lerp(mixedNormal,UnpackBump(tex2D(_BumpMap,IN.uv_BumpMap),_NormIntensity),blend.r);
+            #endif 
+
+            #ifdef _ENABLE_G_ON
+            mixedNormal=lerp(mixedNormal,UnpackBump(tex2D(_GTexBump,IN.uv_GTexBump),_NormIntensity),blend.g);
+            #endif
+
+            #ifdef _ENABLE_B_ON
+            mixedNormal=lerp(mixedNormal,UnpackBump(tex2D(_BTexBump,IN.uv_BTexBump),_NormIntensity),blend.b);
+            #endif 
+
+            #ifdef _ENABLE_A_ON
+            mixedNormal=lerp(mixedNormal,UnpackBump(tex2D(_ATexBump,IN.uv_ATexBump),_NormIntensity),blend.a);
+            #endif
+
             mixedNormal.z += 1e-5f; // to avoid nan after normalizing
             //o.Smoothness=0;
             o.Normal=normalize(mixedNormal);

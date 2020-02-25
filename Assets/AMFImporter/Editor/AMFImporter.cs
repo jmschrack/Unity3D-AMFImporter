@@ -332,7 +332,7 @@ public class AMFImporter : ScriptedImporter
                 flip.SetRow(1,new Vector4(0,0,1));
                 flip.SetRow(2,new Vector4(0,-1));
             }
-            verts.Add(q*(flip.MultiplyPoint3x4(pos)));
+            verts.Add((flip.MultiplyPoint3x4(pos)));//q*
             uvs.Add(perm.vertices[i].tex);
             //texMatrix=perm.vertices[i].tmat;
             if(perm.vertices[i].HasBoneWeight()){
