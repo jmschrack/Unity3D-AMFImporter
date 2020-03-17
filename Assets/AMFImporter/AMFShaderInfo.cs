@@ -13,14 +13,22 @@ public class AMFShaderInfo : ScriptableObject{
     }
 
     /*
+    Textures
     0 - Diffuse
     1 - Detail
-    2 - ???
+    2 - ColorChange
     3 - Normal
     4 - Detail Normal
     5 - Emission
     6 - ???
     7 - ???
+     */
+
+     /*
+    Colors
+    0 - Main Color
+    1 - Emission Color
+    2 - Detail Color
      */
     public string sName;
     public ShaderInfoType shaderType;

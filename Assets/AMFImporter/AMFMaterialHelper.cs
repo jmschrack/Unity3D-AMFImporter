@@ -48,7 +48,9 @@ public class AMFMaterialHelper : MonoBehaviour
         MeshRenderer mr = GetComponent<MeshRenderer>();
         Material[] m = mr.sharedMaterials;       
         for(int i=0;i<m.Length;i++){
+            #if UNITY_EDITOR
             shaderSettings[i].SetupMaterial(m[i]);
+            #endif
         }
         mr.sharedMaterials=m;
     }
